@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>几何冲刺 - 关卡编辑器（完整修复版）</title>
+    <style>
+        :root {
+            --bg-deep: #0a0a18;
+            --bg-surface: #12122a;
+            --bg-panel: #16163a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0c0;
+            --neon-green: #00ff88;
+            --neon-pink: #ff3c78;
+            --neon-blue: #00d4ff;
+            --neon-yellow: #ffd740;
+            --neon-purple: #b347ea;
+            --spike-red: #ff3355;
+            --block-blue: #4488ff;
+            --pillar-purple: #c044ee;
+            --platform-yellow: #ffb830;
+            --player-green: #44ff44;
+            --player-diamond: #ffee00;
+            --danger: #ff3c3c;
+            --success: #3cdd88;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: default;
+        }
+        #bgCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        #app { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; }
+        .page {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.35s ease, transform 0.35s ease;
+            pointer-events: none; opacity: 0; transform: translateY(16px);
+        }
+        .page.active { pointer-events: all; opacity: 1; transform: translateY(0); }
+        #menuPage { gap: 32px; }
+        .menu-title-wrapper { display: flex; align-items: center; gap: 18px; }
+        .music-hint-banner {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 12px;
+            background: linear-gradient(135deg, rgba(0,255,136,0.15), rgba(0,212,255,0.15));
+            border: 2px solid rgba(0,255,136,0.4);
+            padding: 12px 28px; border-radius: 50px;
+            animation: musicPulse 2s ease-in-out infinite, musicSlide 3s ease-in-out infinite;
+            z-index: 100; white-space: nowrap;
+        }
+        @keyframes musicPulse {
+            0%,100% { box-shadow: 0 0 20px rgba(0,255,136,0.3), 0 0 40px rgba(0,212,255,0.2); }
+            50% { box-shadow: 0 0 35px rgba(0,255,136,0.5), 0 0 60px rgba(0,212,255,0.3); }
+        }
+        @keyframes musicSlide {
+            0%,100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-5px); }
+        }
+        .music-icon { font-size: 20px; animation: iconBounce 1s ease-in-out infinite; }
+        .music-icon:nth-child(1) { animation-delay: 0s; }
+        .music-icon:nth-child(3) { animation-delay: 0.3s; }
+        .music-icon:nth-child(5) { animation-delay: 0.6s; }
+        .music-icon:nth-child(7) { animation-delay: 0.9s; }
+        @keyframes iconBounce {
+            0%,100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-6px) scale(1.2); }
+        }
+        .music-text { font-size: 16px; font-weight: 700; letter-spacing: 2px; color: #fff; text-shadow: 0 0 10px rgba(0,255,136,0.6); }
+        .music-bar { width: 3px; height: 20px; background: linear-gradient(to top, var(--neon-green), var(--neon-blue)); border-radius: 2px; animation: barDance 0.5s ease-in-out infinite alternate; }
+        @keyframes barDance { from { height: 12px; } to { height: 22px; } }
+        .menu-geo-decor {
+            width: 50px; height: 50px; background: var(--neon-green);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            animation: floatDecor 3s ease-in-out infinite;
+        }
+        .menu-geo-decor.square { clip-path: none; border-radius: 6px; background: var(--neon-pink); animation-delay: 0.8s; }
+        .menu-geo-decor.diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); background: var(--neon-blue); animation-delay: 1.6s; }
+        @keyframes floatDecor {
+            0%,100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-14px) rotate(5deg); }
+            50% { transform: translateY(-6px) rotate(-3deg); }
+            75% { transform: translateY(-18px) rotate(2deg); }
+        }
+        .menu-title {
+            font-size: 56px; font-weight: 900; letter-spacing: 3px;
+            background: linear-gradient(135deg, #fff 20%, var(--neon-green) 50%, var(--neon-blue) 80%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; filter: drop-shadow(0 0 28px rgba(0,255,136,0.45));
+        }
+        .menu-subtitle { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin-top: -10px; }
+        .menu-buttons { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+        .btn {
+            padding: 14px 44px; font-size: 17px; font-weight: 700; letter-spacing: 2px;
+            border: none; border-radius: 50px; cursor: pointer; color: #fff; text-transform: uppercase;
+            transition: all var(--transition); outline: none; min-width: 220px; text-align: center;
+            position: relative; overflow: hidden;
+        }
+        .btn::after { content: ''; position: absolute; inset: 0; border-radius: 50px; opacity: 0; transition: opacity var(--transition); background: rgba(255,255,255,0.12); }
+        .btn:hover::after { opacity: 1; }
+        .btn:active { transform: scale(0.95); }
+        .btn-play { background: linear-gradient(135deg, var(--neon-green), #00cc66); box-shadow: 0 0 30px rgba(0,255,136,0.5); animation: btnPulse 2.2s infinite; font-size: 20px; padding: 16px 52px; }
+        @keyframes btnPulse { 50% { box-shadow: 0 0 55px rgba(0,255,136,0.8); } }
+        .btn-editor { background: linear-gradient(135deg, var(--neon-pink), #d42a5e); box-shadow: 0 0 24px rgba(255,60,120,0.4); }
+        .btn-levels { background: linear-gradient(135deg, var(--neon-blue), #009fcc); box-shadow: 0 0 24px rgba(0,212,255,0.4); }
+        .btn-settings { background: transparent; border: 2px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); }
+        .game-tips { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.8; letter-spacing: 1px; }
+        .btn-sm { padding: 8px 20px; font-size: 13px; min-width: auto; border-radius: 30px; }
+        .btn-xs { padding: 5px 14px; font-size: 11px; min-width: auto; border-radius: 20px; }
+        .btn-ghost { background: transparent; border: 1.5px solid rgba(255,255,255,0.35); color: #ccc; }
+        .btn-ghost:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.05); }
+        .btn-success { background: var(--success); box-shadow: 0 0 16px rgba(60,220,136,0.35); }
+        #levelsPage { padding: 0; justify-content: center; gap: 0; overflow: hidden; background: linear-gradient(180deg, #1a1a8a 0%, #0a0a5a 100%); }
+        .level-select-container { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative; gap: 40px; }
+        .level-nav-arrow { width: 120px; height: 120px; background: rgba(255,255,255,0.95); border: none; cursor: pointer; clip-path: polygon(25% 5%, 75% 50%, 25% 95%, 40% 95%, 60% 50%, 40% 5%); transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 40px; color: #1a1a8a; box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 -2px 10px rgba(0,0,0,0.1); }
+        .level-nav-arrow:hover { transform: scale(1.12); filter: drop-shadow(0 0 30px rgba(255,255,255,0.7)); background: #fff; }
+        .level-nav-arrow.left { transform: rotate(180deg); }
+        .level-nav-arrow.left:hover { transform: rotate(180deg) scale(1.12); }
+        .level-info-card { text-align: center; min-width: 400px; max-width: 600px; padding: 60px 80px; position: relative; }
+        .level-name-display { font-size: 56px; font-weight: 900; color: #fff; letter-spacing: 6px; text-shadow: 0 0 30px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.5); margin-bottom: 20px; cursor: pointer; transition: all 0.25s ease; user-select: none; }
+        .level-name-display:hover { transform: scale(1.08); text-shadow: 0 0 40px rgba(255,255,255,0.7), 0 6px 16px rgba(0,0,0,0.6); color: #00ff88; }
+        .level-hint { font-size: 14px; color: rgba(255,255,255,0.5); letter-spacing: 2px; }
+        .back-to-menu-btn { position: absolute; top: 25px; left: 25px; width: 80px; height: 80px; background: rgba(255,255,255,0.9); border: none; cursor: pointer; clip-path: polygon(70% 10%, 30% 50%, 70% 90%, 55% 90%, 35% 50%, 55% 10%); transition: all 0.2s ease; z-index: 10; }
+        .back-to-menu-btn:hover { transform: scale(1.15); filter: drop-shadow(0 0 15px rgba(255,255,255,0.6)); }
+        .level-card { background: var(--bg-surface); border: 2px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 20px; cursor: pointer; transition: all var(--transition); position: relative; }
+        .level-card:hover { border-color: var(--neon-blue); box-shadow: 0 0 24px rgba(0,180,255,0.25); transform: translateY(-3px); }
+        .level-card .card-icon { width: 40px; height: 40px; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #fff; }
+        .level-card .card-delete { position: absolute; top: 10px; right: 12px; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.07); color: #aaa; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .level-card .card-delete:hover { background: var(--danger); color: #fff; }
+        .empty-state { text-align: center; color: var(--text-secondary); padding: 60px 20px; grid-column: 1/-1; }
+        #editorPage { flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; gap: 0; }
+        .editor-toolbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--bg-panel); border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; z-index: 5; flex-wrap: wrap; }
+        .editor-toolbar input[type="text"] { background: var(--bg-surface); border: 1.5px solid rgba(255,255,255,0.2); color: #fff; padding: 7px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; width: 180px; outline: none; }
+        .editor-toolbar input:focus { border-color: var(--neon-blue); }
+        .editor-main { display: flex; flex: 1; overflow: hidden; }
+        .editor-sidebar { width: 170px; background: var(--bg-panel); border-right: 1px solid rgba(255,255,255,0.08); padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+        .editor-sidebar.hidden { display: none; }
+        .obstacle-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; border: 2px solid transparent; background: var(--bg-surface); color: #ccc; font-size: 13px; font-weight: 600; }
+        .obstacle-btn:hover { border-color: rgba(255,255,255,0.3); background: #1e1e40; }
+        .obstacle-btn.selected { border-color: #fff !important; box-shadow: 0 0 16px rgba(255,255,255,0.3); background: #252550; color: #fff; }
+        .editor-canvas-wrap { flex: 1; position: relative; overflow: hidden; cursor: crosshair; background: #0a0a1a; }
+        .editor-canvas-wrap.copy-mode-cursor { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="%2344ff44" stroke="%23fff" stroke-width="1.5" rx="2"/></svg>') 10 10, crosshair; }
+        #editorCanvas { display: block; width: 100%; height: 100%; }
+        .editor-bottom-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--bg-panel); border-top: 1px solid rgba(255,255,255,0.07); font-size: 12px; color: var(--text-secondary); }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--bg-panel); border: 1.5px solid rgba(255,255,255,0.25); color: #fff; padding: 12px 24px; border-radius: 30px; z-index: 200; transition: transform 0.35s; font-weight: 600; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal { background: var(--bg-surface); border: 2px solid rgba(255,255,255,0.15); border-radius: var(--radius); padding: 28px 30px; min-width: 360px; display: flex; flex-direction: column; gap: 18px; }
+        /* 胜利页面样式 */
+        .victory-overlay { position: fixed; inset: 0; z-index: 200; background: linear-gradient(135deg, rgba(0,50,100,0.95) 0%, rgba(0,20,60,0.98) 50%, rgba(30,0,80,0.95) 100%); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; backdrop-filter: blur(10px); }
+        .victory-overlay.show { opacity: 1; pointer-events: all; }
+        .victory-content { text-align: center; position: relative; padding: 60px 80px; max-width: 600px; animation: victorySlideIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes victorySlideIn { from { transform: translateY(-50px) scale(0.8); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+        .victory-particles { position: absolute; inset: -50px; pointer-events: none; overflow: hidden; }
+        .victory-icon { font-size: 120px; margin-bottom: 20px; animation: trophyBounce 1s ease-in-out infinite alternate; filter: drop-shadow(0 10px 30px rgba(255,215,0,0.6)); }
+        @keyframes trophyBounce { from { transform: translateY(0) rotate(-5deg); } to { transform: translateY(-15px) rotate(5deg); } }
+        .victory-title { font-size: 56px; font-weight: 900; color: #ffd700; letter-spacing: 4px; margin-bottom: 12px; text-shadow: 0 0 40px rgba(255,215,0,0.6), 0 4px 16px rgba(0,0,0,0.5); animation: titleGlow 2s ease-in-out infinite alternate; }
+        @keyframes titleGlow { from { text-shadow: 0 0 40px rgba(255,215,0,0.6), 0 4px 16px rgba(0,0,0,0.5); } to { text-shadow: 0 0 60px rgba(255,215,0,0.9), 0 6px 24px rgba(0,0,0,0.7), 0 0 100px rgba(255,215,0,0.3); } }
+        .victory-subtitle { font-size: 22px; color: #00ff88; margin-bottom: 8px; letter-spacing: 3px; font-weight: 600; }
+        .victory-level-name { font-size: 28px; color: #fff; margin-bottom: 35px; font-weight: 700; opacity: 0.9; }
+        .victory-stats { display: flex; justify-content: center; gap: 50px; margin-bottom: 45px; }
+        .stat-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .stat-label { font-size: 13px; color: rgba(255,255,255,0.6); letter-spacing: 1px; }
+        .stat-value { font-size: 18px; color: #fff; font-weight: 700; }
+        .victory-text { color: #00ff88 !important; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .victory-buttons { display: flex; gap: 20px; justify-content: center; }
+        .victory-btn { padding: 16px 36px; font-size: 17px; animation: btnFloat 2s ease-in-out infinite; }
+        .victory-btn:nth-child(2) { animation-delay: 0.3s; }
+        @keyframes btnFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @media (max-width: 768px) {
+            .menu-title { font-size: 34px; }
+            .btn { padding: 12px 30px; font-size: 14px; }
+            .editor-sidebar { width: 110px; }
+            .obstacle-btn { padding: 8px; font-size: 10px; }
+            .editor-toolbar input[type="text"] { width: 110px; }
+            .levels-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+        }
+    </style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="settingsOverlay">
+    <div class="modal">
+        <h3>⚙️ 设置</h3>
+        <div class="setting-row"><label>背景粒子密度</label><input type="range" min="20" max="120" value="55" id="particleDensity"></div>
+        <div class="setting-row"><label>默认缩放级别</label><input type="range" min="20" max="80" value="45" id="defaultZoom"></div>
+        <div class="setting-row"><label>网格显示</label><input type="range" min="0" max="1" value="0" step="1" id="showGridToggle"></div>
+        <div class="setting-row"><label>🎵 导入音乐</label><button class="btn btn-xs" style="background:var(--neon-purple);color:#fff;" onclick="document.getElementById('musicFileInput').click()">选择音乐文件</button><input type="file" id="musicFileInput" accept="audio/*" style="display:none;" onchange="loadMusic(event)"></div>
+        <div class="setting-row"><label>🔊 音量</label><input type="range" min="0" max="100" value="50" id="musicVolume" oninput="setMusicVolume(this.value)"></div>
+        <div class="setting-row" id="musicNameRow" style="display:none;"><label>当前音乐</label><span id="musicName" style="color:var(--neon-green);font-size:12px;">无</span></div>
+        <p style="font-size:11px;color:var(--text-secondary);text-align:center;">几何冲刺编辑器 v2.6 · 修复版</p>
+        <div class="btn-row"><button class="btn btn-sm btn-ghost" onclick="exportLevelData()">📤 导出关卡数据</button><button class="btn btn-sm btn-ghost" onclick="closeSettings()">关闭</button></div>
+    </div>
+</div>
+<!-- 胜利页面 -->
+<div class="victory-overlay" id="victoryOverlay">
+    <div class="victory-content">
+        <div class="victory-particles" id="victoryParticles"></div>
+        <div class="victory-icon">🏆</div>
+        <h1 class="victory-title">关卡完成！</h1>
+        <p class="victory-subtitle">恭喜你成功通关！</p>
+        <p class="victory-level-name" id="victoryLevelName"></p>
+        <div class="victory-stats">
+            <div class="stat-item">
+                <span class="stat-label">难度等级</span>
+                <span class="stat-value" id="victoryDifficulty">★★★☆☆</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">完成状态</span>
+                <span class="stat-value victory-text">完美通关</span>
+            </div>
+        </div>
+        <div class="victory-buttons">
+            <button class="btn btn-play victory-btn" onclick="replayLevel()">🔄 再玩一次</button>
+            <button class="btn btn-levels victory-btn" onclick="backToLevels()">📋 选择其他关卡</button>
+        </div>
+    </div>
+</div>
+
+<div id="app">
+    <!-- 菜单页 -->
+    <div class="page active" id="menuPage">
+        <div class="music-hint-banner" id="musicHintBanner">
+            <span class="music-icon">🎵</span>
+            <span class="music-text">点击任意区域</span>
+            <span class="music-icon">🎵</span>
+            <span class="music-bar"></span>
+            <span class="music-text">即可播放音乐</span>
+            <span class="music-icon">🎵</span>
+        </div>
+        <div class="menu-title-wrapper">
+            <div class="menu-geo-decor"></div><div class="menu-geo-decor square"></div>
+            <h1 class="menu-title">几何冲刺</h1><div class="menu-geo-decor diamond"></div>
+        </div>
+        <p class="menu-subtitle">Geometry Dash · Level Editor</p>
+        <div class="menu-buttons">
+            <button class="btn btn-play" onclick="navigateTo('levels')">▶ 开始游戏</button>
+            <button class="btn btn-settings" onclick="openSettings()">设置</button>
+        </div>
+        <div class="game-tips">
+            <p>按 空格 或 鼠标 可以上下切换轨道</p>
+            <p>角色上下有辅助线有很大作用哦！</p>
+            <p>如果觉得比较困难可以开启无判定模式</p>
+        </div>
+        <button class="btn btn-sm btn-ghost" id="musicToggleBtn" style="margin-top:12px;display:none;" onclick="toggleMusic()">🎵 播放音乐</button>
+    </div>
+    <!-- 关卡选择页 -->
+    <div class="page" id="levelsPage">
+        <button class="back-to-menu-btn" onclick="navigateTo('menu')" title="返回主菜单"></button>
+        <div class="level-select-container">
+            <button class="level-nav-arrow left" onclick="switchLevel(-1)" title="上一关"></button>
+            <div class="level-info-card">
+                <div class="level-name-display" id="currentLevelName" onclick="enterCurrentLevel()">溃散</div>
+                <p class="level-hint">点击名称开始游戏</p>
+            </div>
+            <button class="level-nav-arrow" onclick="switchLevel(1)" title="下一关"></button>
+        </div>
+    </div>
+    <!-- 编辑器页 -->
+    <div class="page" id="editorPage">
+        <div class="editor-toolbar">
+            <button class="btn btn-xs btn-ghost" onclick="navigateTo('levels')">← 返回</button>
+            <span class="divider"></span>
+            <input type="text" id="levelNameInput" value="新关卡" placeholder="关卡名称">
+            <span class="divider"></span>
+            <button class="btn btn-xs btn-ghost" onclick="editorZoomOut()">−</button>
+            <span class="zoom-indicator" id="zoomIndicator">45px/格</span>
+            <button class="btn btn-xs btn-ghost" onclick="editorZoomIn()">+</button>
+            <span class="divider"></span>
+            <button class="btn btn-xs btn-success" onclick="togglePreview()" id="previewBtn">▶ 预览</button>
+            <button class="btn btn-xs btn-ghost" onclick="saveCurrentLevel()">💾 保存</button>
+            <button class="btn btn-xs btn-ghost" onclick="toggleNoCollision()" id="noCollisionBtn" title="无判定模式：角色不会死亡">🛡️ 无判定</button>
+            <span style="flex:1;"></span>
+            <span id="obsCount" style="font-size:11px;color:var(--text-secondary);">障碍物: 0</span>
+        </div>
+        <div class="editor-main">
+            <div class="editor-sidebar" id="editorSidebar">
+                <div class="sidebar-title">障碍物</div>
+                <button class="obstacle-btn selected" data-type="spike" onclick="selectObstacleType('spike',this)"><span class="obs-icon spike"></span> 尖刺</button>
+                <button class="obstacle-btn" data-type="small-spike" onclick="selectObstacleType('small-spike',this)"><span class="obs-icon small-spike"></span> 小刺</button>
+                <button class="obstacle-btn" data-type="fake-spike" onclick="selectObstacleType('fake-spike',this)"><span class="obs-icon fake-spike"></span> 假刺</button>
+                <button class="obstacle-btn" data-type="block" onclick="selectObstacleType('block',this)"><span class="obs-icon block"></span> 方块</button>
+                <button class="obstacle-btn" data-type="fake-block" onclick="selectObstacleType('fake-block',this)"><span class="obs-icon fake-block"></span> 假方块</button>
+                <button class="obstacle-btn" data-type="tall-pillar" onclick="selectObstacleType('tall-pillar',this)"><span class="obs-icon tall-pillar"></span> 高柱</button>
+                <button class="obstacle-btn" data-type="short-pillar" onclick="selectObstacleType('short-pillar',this)"><span class="obs-icon short-pillar"></span> 矮柱</button>
+                <button class="obstacle-btn" data-type="platform" onclick="selectObstacleType('platform',this)"><span class="obs-icon platform"></span> 平台</button>
+            </div>
+            <div class="editor-canvas-wrap" id="editorCanvasWrap">
+                <canvas id="editorCanvas"></canvas>
+            </div>
+        </div>
+        <div class="editor-bottom-bar">
+            <span class="hint">点击放置 · 拖拽移动 · 拖动球旋转 · 右键/Del删除 | 预览：空格/左键切换位置，右键退出</span>
+            <span style="flex:1;"></span>
+            <span id="cursorPos" style="font-family:monospace;">位置: (0.00, 0)</span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const STORAGE_KEY = 'geometry_dash_levels';
+    let currentPage = 'menu';
+    let selectedObstacleType = 'spike';
+    let currentLevelId = null;
+    let currentLevelData = null;
+    let isPreviewing = false;
+    let previewPos = 0;
+    let previewSpeed = 10;
+    let previewRAF = null;
+    let previewLastTime = 0;
+    let previewPlayerOnTop = false;
+    const PLAYER_SIZE = 45;
+    const PLAYER_HALF = PLAYER_SIZE / 2;
+    let isGameOver = false;
+    let isVictory = false;
+    let isPlayMode = false;
+    let previewNoCollision = false;
+
+    let toastTimer = null;
+    let particleDensity = 55;
+    let defaultZoomVal = 45;
+
+    let editorZoom = 45;
+    let editorScrollX = 0;
+    let editorSelectedObs = null;
+    let editorDragging = null;
+    let editorRotating = null;
+    let editorPanning = false;
+    let editorPanStartX = 0;
+    let editorPanStartScroll = 0;
+    let editorMouseWorldX = 0;
+    let editorMouseWorldY = 0;
+
+    // 框选复制模式状态
+    let isCopyMode = false;
+    let isCopySelecting = false;
+    let copyDragStarted = false;
+    let copyMouseDownPos = null;
+    let copySelectStart = null;
+    let copySelectEnd = null;
+    const COPY_DRAG_THRESHOLD = 5;
+    const COPY_MIN_WIDTH_PX = 10;
+    let clipboardObs = [];
+    let ghostOffset = 0;
+    let ghostBasePos = 0;
+
+    function toggleCopyMode() {
+        if(isPreviewing) return;
+        isCopyMode = !isCopyMode;
+        const btn=document.getElementById('copyModeBtn');
+        if(isCopyMode) {
+            btn.style.background='var(--neon-blue)';
+            btn.style.color='#fff';
+            btn.textContent='📋 复制中';
+            editorCanvasWrap.classList.add('copy-mode-cursor');
+            exitGhostPaste();
+        } else {
+            btn.style.background='';
+            btn.style.color='';
+            btn.textContent='📋 复制';
+            editorCanvasWrap.classList.remove('copy-mode-cursor');
+            exitCopySelect();
+            exitGhostPaste();
+        }
+    }
+    function exitCopyMode() {
+        if(!isCopyMode) return;
+        isCopyMode=false;
+        const btn=document.getElementById('copyModeBtn');
+        btn.style.background=''; btn.style.color=''; btn.textContent='📋 复制';
+        editorCanvasWrap.classList.remove('copy-mode-cursor');
+        exitCopySelect(); exitGhostPaste();
+    }
+    function exitCopySelect() {
+        isCopySelecting=false; copyDragStarted=false;
+        copyMouseDownPos=null; copySelectStart=null; copySelectEnd=null;
+    }
+    function exitGhostPaste() {
+        clipboardObs=[]; ghostOffset=0; ghostBasePos=0;
+    }
+    function pasteGhosts() {
+        if(!currentLevelData || clipboardObs.length===0) return;
+        for(const obs of clipboardObs) {
+            const newObs={ id:'obs_'+Date.now()+'_'+Math.random().toString(36).substr(2,5), type:obs.type, position:obs.position+ghostOffset, yOffset:obs.yOffset, angle:obs.angle||0 };
+            currentLevelData.obstacles.push(newObs);
+        }
+        sortObstacles(currentLevelData.obstacles);
+        showToast('已粘贴 '+clipboardObs.length+' 个障碍物','success');
+    }
+
+    window.toggleCopyMode=toggleCopyMode;
+
+    // 音乐系统
+    let bgMusic = null;
+    let musicLoaded = false;
+    let previewMusic = null;
+    const DEFAULT_MUSIC_URL = 'https://static.tcamp.qq.com/gallery/prod/2026/4/27/49defbf29fc13792/f9f30f06-f7cd-468b-8fde-56ae7aa7c23f.mp3';
+    const PREVIEW_MUSIC_URL = 'https://static.tcamp.qq.com/gallery/prod/2026/4/27/49defbf29fc13792/bbe6e4e9-ffa0-4cec-8bb2-e5411b826142.mp3';
+
+    function initDefaultMusic() {
+        if (bgMusic) { bgMusic.pause(); bgMusic = null; }
+        bgMusic = new Audio();
+        bgMusic.loop = true;
+        bgMusic.volume = document.getElementById('musicVolume').value / 100;
+        bgMusic.src = DEFAULT_MUSIC_URL;
+        bgMusic.autoplay = true;
+        bgMusic.addEventListener('canplaythrough', function() {
+            musicLoaded = true;
+            document.getElementById('musicNameRow').style.display = 'flex';
+            document.getElementById('musicName').textContent = '默认背景音乐';
+            document.getElementById('musicToggleBtn').style.display = 'inline-block';
+            document.getElementById('musicToggleBtn').textContent = '🎵 暂停音乐';
+            bgMusic.play().catch(function() {
+                document.addEventListener('click', function autoStart() {
+                    if (bgMusic && bgMusic.paused) bgMusic.play();
+                    document.removeEventListener('click', autoStart);
+                }, { once: true });
+                document.addEventListener('keydown', function autoStartKey() {
+                    if (bgMusic && bgMusic.paused) bgMusic.play();
+                    document.removeEventListener('keydown', autoStartKey);
+                }, { once: true });
+            });
+        }, { once: true });
+        bgMusic.addEventListener('error', function() {
+            musicLoaded = false;
+        });
+    }
+
+    function loadMusic(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (bgMusic) { bgMusic.pause(); bgMusic = null; }
+        bgMusic = new Audio();
+        bgMusic.loop = true;
+        bgMusic.volume = document.getElementById('musicVolume').value / 100;
+        const url = URL.createObjectURL(file);
+        bgMusic.src = url;
+        bgMusic.addEventListener('canplaythrough', function() {
+            musicLoaded = true;
+            document.getElementById('musicNameRow').style.display = 'flex';
+            document.getElementById('musicName').textContent = file.name;
+            document.getElementById('musicToggleBtn').style.display = 'inline-block';
+            document.getElementById('musicToggleBtn').textContent = '🎵 暂停音乐';
+            bgMusic.play().catch(function() {});
+            showToast('音乐导入成功：' + file.name);
+        }, { once: true });
+        bgMusic.addEventListener('error', function() {
+            musicLoaded = false;
+            showToast('音乐加载失败，请尝试其他格式');
+        });
+    }
+
+    function toggleMusic() {
+        if (!bgMusic || !musicLoaded) return;
+        if (bgMusic.paused) {
+            bgMusic.play();
+            document.getElementById('musicToggleBtn').textContent = '🎵 暂停音乐';
+        } else {
+            bgMusic.pause();
+            document.getElementById('musicToggleBtn').textContent = '🎵 播放音乐';
+        }
+    }
+
+    function setMusicVolume(val) {
+        if (bgMusic) bgMusic.volume = val / 100;
+    }
+
+    window.loadMusic = loadMusic;
+    window.toggleMusic = toggleMusic;
+    window.setMusicVolume = setMusicVolume;
+
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const editorCanvas = document.getElementById('editorCanvas');
+    const editorCtx = editorCanvas.getContext('2d');
+    const editorCanvasWrap = document.getElementById('editorCanvasWrap');
+    const toast = document.getElementById('toast');
+    const settingsOverlay = document.getElementById('settingsOverlay');
+    const levelNameInput = document.getElementById('levelNameInput');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+    const obsCountEl = document.getElementById('obsCount');
+    const cursorPosEl = document.getElementById('cursorPos');
+    const previewBtn = document.getElementById('previewBtn');
+    const levelsGrid = document.getElementById('levelsGrid');
+    const particleDensitySlider = document.getElementById('particleDensity');
+    const defaultZoomSlider = document.getElementById('defaultZoom');
+    const showGridToggle = document.getElementById('showGridToggle');
+
+    let bgParticles = [], bgGeos = [];
+
+    function initBgParticles() {
+        bgParticles = []; bgGeos = [];
+        const count = Math.floor(particleDensity);
+        for (let i=0;i<count;i++) {
+            bgParticles.push({
+                x: Math.random()*bgCanvas.width, y: Math.random()*bgCanvas.height,
+                vx: (Math.random()-0.5)*0.4, vy: (Math.random()-0.5)*0.4,
+                size: Math.random()*2+0.8, alpha: Math.random()*0.5+0.2,
+                twinkleSpeed: Math.random()*0.02+0.005, twinkleOffset: Math.random()*Math.PI*2
+            });
+        }
+        const geoCount = 12;
+        const geoNames = ['triangle','square','diamond','hexagon'];
+        for (let i=0;i<geoCount;i++) {
+            bgGeos.push({
+                x: Math.random()*bgCanvas.width, y: Math.random()*bgCanvas.height,
+                size: Math.random()*35+15, rotation: Math.random()*Math.PI*2,
+                rotSpeed: (Math.random()-0.5)*0.008, vx: (Math.random()-0.5)*0.25, vy: (Math.random()-0.5)*0.25,
+                alpha: Math.random()*0.12+0.03, type: geoNames[Math.floor(Math.random()*geoNames.length)],
+                hue: [40,160,200,280,330,30][Math.floor(Math.random()*6)]
+            });
+        }
+    }
+
+    function drawBgGeos(ctx,w,h) {
+        bgGeos.forEach(g=>{
+            ctx.save(); ctx.translate(g.x,g.y); ctx.rotate(g.rotation); ctx.globalAlpha=g.alpha;
+            ctx.fillStyle=`hsl(${g.hue},80%,60%)`; ctx.strokeStyle=`hsl(${g.hue},70%,70%)`; ctx.lineWidth=1.5;
+            const s=g.size;
+            ctx.beginPath();
+            switch(g.type){
+                case 'triangle': ctx.moveTo(0,-s*0.6); ctx.lineTo(-s*0.55,s*0.4); ctx.lineTo(s*0.55,s*0.4); ctx.closePath(); break;
+                case 'square': ctx.rect(-s*0.4,-s*0.4,s*0.8,s*0.8); break;
+                case 'diamond': ctx.moveTo(0,-s*0.55); ctx.lineTo(s*0.45,0); ctx.lineTo(0,s*0.55); ctx.lineTo(-s*0.45,0); ctx.closePath(); break;
+                case 'hexagon': for(let i=0;i<6;i++){const a=(Math.PI/3)*i-Math.PI/6; const px=Math.cos(a)*s*0.4, py=Math.sin(a)*s*0.4; if(i===0)ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.closePath(); break;
+            }
+            ctx.fill(); ctx.stroke(); ctx.restore();
+        });
+    }
+
+    function animateBg(timestamp) {
+        const w=bgCanvas.width, h=bgCanvas.height;
+        bgCtx.clearRect(0,0,w,h);
+        bgParticles.forEach(p=>{
+            p.x+=p.vx; p.y+=p.vy;
+            if(p.x<-10)p.x=w+10; if(p.x>w+10)p.x=-10;
+            if(p.y<-10)p.y=h+10; if(p.y>h+10)p.y=-10;
+            const flicker=Math.sin(timestamp*p.twinkleSpeed+p.twinkleOffset)*0.3+0.7;
+            bgCtx.fillStyle=`rgba(255,255,255,${p.alpha*flicker})`;
+            bgCtx.beginPath(); bgCtx.arc(p.x,p.y,p.size,0,Math.PI*2); bgCtx.fill();
+        });
+        bgGeos.forEach(g=>{
+            g.x+=g.vx; g.y+=g.vy; g.rotation+=g.rotSpeed;
+            if(g.x<-60)g.x=w+60; if(g.x>w+60)g.x=-60;
+            if(g.y<-60)g.y=h+60; if(g.y>h+60)g.y=-60;
+        });
+        drawBgGeos(bgCtx,w,h);
+        requestAnimationFrame(animateBg);
+    }
+
+    function resizeBgCanvas() { bgCanvas.width=innerWidth; bgCanvas.height=innerHeight; initBgParticles(); }
+
+    function showToast(msg,type='info') {
+        if(toastTimer) clearTimeout(toastTimer);
+        toast.textContent=msg; toast.className='toast '+type+' show';
+        toastTimer=setTimeout(()=>toast.classList.remove('show'),1800);
+    }
+
+    function navigateTo(page) {
+        stopPreview();
+        if(page!=='editor') isPlayMode = false;
+        document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+        const target=document.getElementById(page+'Page');
+        if(target){ target.classList.add('active'); currentPage=page; }
+        if(page==='levels') { refreshLevelsList(); updateLevelDisplay(); }
+        if(page==='editor') requestAnimationFrame(()=>resizeEditorCanvas());
+        if(page==='menu'){
+            currentLevelId=null; currentLevelData=null;
+            if(bgMusic && musicLoaded && bgMusic.paused) bgMusic.play().catch(function(){});
+        } else {
+            if(bgMusic && !bgMusic.paused) bgMusic.pause();
+        }
+    }
+
+    const levelOrder = ['溃散', '初始', '密钥'];
+    let currentLevelIndex = 0;
+
+    function updateLevelDisplay() {
+        const nameEl = document.getElementById('currentLevelName');
+        if(nameEl) nameEl.textContent = levelOrder[currentLevelIndex];
+        updateLevelBackground();
+    }
+
+    function switchLevel(direction) {
+        currentLevelIndex = (currentLevelIndex + direction + levelOrder.length) % levelOrder.length;
+        updateLevelDisplay();
+    }
+
+    function enterCurrentLevel() {
+        const levelName = levelOrder[currentLevelIndex];
+        const levels = getAllLevels();
+        const level = levels.find(l => l.name === levelName);
+        if(level) {
+            isPlayMode = true;
+            openLevelInEditor(level.id);
+        }
+    }
+
+    function updateLevelBackground() {
+        const page = document.getElementById('levelsPage');
+        if(!page) return;
+        const colors = {
+            '溃散': 'linear-gradient(180deg, #2a1a0a 0%, #5a3a0a 100%)',
+            '初始': 'linear-gradient(180deg, #0a1a4a 0%, #0a2a6a 100%)',
+            '密钥': 'linear-gradient(180deg, #4a0a0a 0%, #6a0a2a 100%)'
+        };
+        page.style.background = colors[levelOrder[currentLevelIndex]] || colors['初始'];
+    }
+
+    function getAllLevels() { try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch{return[];} }
+    function saveAllLevels(levels) { localStorage.setItem(STORAGE_KEY,JSON.stringify(levels)); }
+    function getLevelById(id) { return getAllLevels().find(l=>l.id===id)||null; }
+    function saveLevel(levelData) {
+        const levels=getAllLevels(); const idx=levels.findIndex(l=>l.id===levelData.id);
+        if(idx>=0) levels[idx]=levelData; else levels.push(levelData);
+        saveAllLevels(levels);
+    }
+    function deleteLevelById(id) { saveAllLevels(getAllLevels().filter(l=>l.id!==id)); }
+    function generateId() { return 'lv_'+Date.now()+'_'+Math.random().toString(36).substr(2,6); }
+    function createNewLevelData(name) { return { id:generateId(), name:name||'新关卡', obstacles:[], createdAt:new Date().toISOString(), gridSize:defaultZoomVal, musicUrl:'' }; }
+
+    function refreshLevelsList() {
+        const levels=getAllLevels();
+        levelsGrid.innerHTML='';
+        if(levels.length===0){ levelsGrid.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><p>还没有关卡，点击"新建关卡"开始创建吧！</p></div>'; return; }
+        levels.forEach((lv,i)=>{
+            const card=document.createElement('div'); card.className='level-card';
+            card.innerHTML=`<div class="card-icon type-${i%3}">${i%3===0?'▲':i%3===1?'■':'◆'}</div><div class="card-name">${escapeHtml(lv.name)}</div><div class="card-meta">障碍物: ${lv.obstacles.length} · ${new Date(lv.createdAt).toLocaleDateString('zh-CN')}</div><button class="card-delete" data-id="${lv.id}">×</button>`;
+            card.addEventListener('click',e=>{if(e.target.classList.contains('card-delete'))return; openLevelInEditor(lv.id);});
+            card.querySelector('.card-delete').addEventListener('click',e=>{e.stopPropagation(); if(confirm('确定删除?')){deleteLevelById(lv.id); refreshLevelsList(); showToast('已删除','info');}});
+            levelsGrid.appendChild(card);
+        });
+    }
+    function escapeHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function createNewLevel() {
+        const name=prompt('关卡名称：','新关卡');
+        if(name===null) return;
+        isPlayMode = false;
+        const data=createNewLevelData(name.trim()||'新关卡'); saveLevel(data);
+        openLevelInEditor(data.id); showToast('关卡已创建！','success');
+    }
+    function openLevelInEditor(id) {
+        const data=getLevelById(id);
+        if(!data){ showToast('关卡不存在'); refreshLevelsList(); return; }
+        currentLevelId=id; currentLevelData=JSON.parse(JSON.stringify(data));
+        if(currentLevelData.name==='溃散'&&!currentLevelData.musicUrl) { currentLevelData.musicUrl='https://static.tcamp.qq.com/gallery/prod/2026/5/7/49defbf29fc13792/1acab70a-73a1-492a-81f5-0074c8fb290d.mp3'; saveLevel(currentLevelData); }
+        if(currentLevelData.name==='密钥'&&!currentLevelData.musicUrl) { currentLevelData.musicUrl='https://static.tcamp.qq.com/gallery/prod/2026/5/9/49defbf29fc13792/532c2639-a34f-4723-931c-7c38bca08530.mp3'; saveLevel(currentLevelData); }
+        sortObstacles(currentLevelData.obstacles);
+        levelNameInput.value=currentLevelData.name;
+        editorZoom=currentLevelData.gridSize||defaultZoomVal; editorScrollX=0;
+        editorSelectedObs=null; editorDragging=null; editorRotating=null;
+        exitCopyMode();
+        selectedObstacleType='spike'; updateObstacleTypeButtons();
+        stopPreview(); navigateTo('editor'); startPreview(); updateZoomIndicator(); updateObsCount();
+        requestAnimationFrame(()=>{resizeEditorCanvas(); renderEditor();});
+        showToast('已加载: '+currentLevelData.name,'info');
+    }
+    function saveCurrentLevel() {
+        if(!currentLevelData||!currentLevelId) return;
+        currentLevelData.name=levelNameInput.value.trim()||'新关卡'; currentLevelData.gridSize=editorZoom;
+        saveLevel(currentLevelData); showToast('已保存','success'); updateObsCount();
+    }
+
+    function updateZoomIndicator() { zoomIndicator.textContent=editorZoom+'px/格'; }
+    function updateObsCount() { if(currentLevelData) obsCountEl.textContent='障碍物: '+currentLevelData.obstacles.length; }
+    function updateObstacleTypeButtons() { document.querySelectorAll('.obstacle-btn').forEach(b=>b.classList.toggle('selected',b.dataset.type===selectedObstacleType)); }
+    function selectObstacleType(type,btn) { selectedObstacleType=type; updateObstacleTypeButtons(); }
+    function editorZoomIn() { editorZoom=Math.min(80,editorZoom+8); updateZoomIndicator(); renderEditor(); }
+    function editorZoomOut() { editorZoom=Math.max(16,editorZoom-8); updateZoomIndicator(); renderEditor(); }
+    function resizeEditorCanvas() { const w=editorCanvasWrap.clientWidth, h=editorCanvasWrap.clientHeight; if(editorCanvas.width!==w||editorCanvas.height!==h){ editorCanvas.width=w; editorCanvas.height=h; renderEditor(); } }
+    function worldToScreen(wx) { return (wx-editorScrollX)*editorZoom; }
+    function screenToWorld(sx) { return sx/editorZoom+editorScrollX; }
+
+    function sortObstacles(arr) { arr.sort((a,b)=>a.position-b.position); }
+    function binarySearchLeft(arr, target) {
+        let lo=0, hi=arr.length;
+        while(lo<hi) { const mid=(lo+hi)>>1; if(arr[mid].position<target) lo=mid+1; else hi=mid; }
+        return lo;
+    }
+    function binarySearchRight(arr, target) {
+        let lo=0, hi=arr.length;
+        while(lo<hi) { const mid=(lo+hi)>>1; if(arr[mid].position<=target) lo=mid+1; else hi=mid; }
+        return lo;
+    }
+    function insertObstacleSorted(arr, obs) {
+        const idx=binarySearchRight(arr, obs.position);
+        arr.splice(idx, 0, obs);
+    }
+
+    function getObstacleHalfSize(type) {
+        switch(type){
+            case 'spike': return {w:21,h:39};
+            case 'small-spike': return {w:14,h:25};
+            case 'fake-spike': return {w:21,h:39};
+            case 'block': return {w:24,h:48};
+            case 'fake-block': return {w:22.5,h:22.5};
+            case 'tall-pillar': return {w:14,h:96};
+            case 'short-pillar': return {w:16,h:40};
+            case 'platform': return {w:40,h:20};
+            default: return {w:32,h:64};
+        }
+    }
+    function getObstacleHeight(type) { return getObstacleHalfSize(type).h; }
+
+    function getObstacleVisualScreenBounds(obs) {
+        const sx=worldToScreen(obs.position);
+        const baseY=(editorCanvas.height*0.72)+(obs.yOffset||0);
+        const half=getObstacleHalfSize(obs.type);
+        const cy=baseY-half.h/2;
+        switch(obs.type) {
+            case 'spike': return {left:sx-21, right:sx+21, top:cy-19.5, bottom:cy+19.5, tipX:sx, tipY:cy-19.5, baseLeftX:sx-21, baseLeftY:cy+19.5, baseRightX:sx+21, baseRightY:cy+19.5};
+            case 'small-spike': return {left:sx-7, right:sx+7, top:cy-12.5, bottom:cy+12.5, tipX:sx, tipY:cy-12.5, baseLeftX:sx-7, baseLeftY:cy+12.5, baseRightX:sx+7, baseRightY:cy+12.5};
+            case 'fake-spike': return {left:sx-21, right:sx+21, top:cy-19.5, bottom:cy+19.5, tipX:sx, tipY:cy-19.5, baseLeftX:sx-21, baseLeftY:cy+19.5, baseRightX:sx+21, baseRightY:cy+19.5};
+            case 'block': return {left:sx-24, right:sx+24, top:cy-24, bottom:cy+24};
+            case 'fake-block': return {left:sx-22.5, right:sx+22.5, top:cy-11.25, bottom:cy+11.25};
+            case 'tall-pillar': return {left:sx-14, right:sx+14, top:cy-48, bottom:cy+48};
+            case 'short-pillar': return {left:sx-16, right:sx+16, top:cy-20, bottom:cy+20};
+            case 'platform': return {left:sx-40, right:sx+40, top:cy-10, bottom:cy+10};
+            default: return {left:sx-32, right:sx+32, top:cy-32, bottom:cy+32};
+        }
+    }
+
+    function cross2D(ox,oy,ax,ay,bx,by) { return (ax-ox)*(by-oy)-(ay-oy)*(bx-ox); }
+    function pointInTriangle(px,py,t0,t1,t2) {
+        const d1=cross2D(t0.x,t0.y,t1.x,t1.y,px,py);
+        const d2=cross2D(t1.x,t1.y,t2.x,t2.y,px,py);
+        const d3=cross2D(t2.x,t2.y,t0.x,t0.y,px,py);
+        const hasNeg=(d1<0)||(d2<0)||(d3<0), hasPos=(d1>0)||(d2>0)||(d3>0);
+        return !(hasNeg&&hasPos);
+    }
+    function segmentsOverlap(a1,a2,b1,b2) { return Math.max(a1,b1)<=Math.min(a2,b2); }
+    function rectTriangleOverlap(rl,rt,rr,rb,t0,t1,t2) {
+        if(pointInTriangle(rl,rt,t0,t1,t2)||pointInTriangle(rr,rt,t0,t1,t2)||pointInTriangle(rl,rb,t0,t1,t2)||pointInTriangle(rr,rb,t0,t1,t2)) return true;
+        if(rl<=t0.x&&t0.x<=rr&&rt<=t0.y&&t0.y<=rb) return true;
+        if(rl<=t1.x&&t1.x<=rr&&rt<=t1.y&&t1.y<=rb) return true;
+        if(rl<=t2.x&&t2.x<=rr&&rt<=t2.y&&t2.y<=rb) return true;
+        const edges=[[t0,t1],[t1,t2],[t2,t0]];
+        for(const [a,b] of edges) {
+            if(segmentsOverlap(a.x,b.x,rl,rr)&&segmentsOverlap(a.y,b.y,rt,rb)) return true;
+        }
+        return false;
+    }
+
+    function renderEditor() {
+        const ctx=editorCtx, w=editorCanvas.width, h=editorCanvas.height;
+        if(w<=0||h<=0) return;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,w,h);
+        const showGrid=showGridToggle.value==='1';
+        const groundY=h*0.72;
+        const topGroundY=(h-groundY)/2;
+
+        if(showGrid) {
+            const gridInterval=editorZoom>=35?1:editorZoom>=18?2:5;
+            const startWorld=Math.floor(editorScrollX/gridInterval)*gridInterval;
+            const endWorld=screenToWorld(w)+gridInterval;
+            for(let wx=startWorld; wx<=endWorld; wx+=gridInterval) {
+                const sx=worldToScreen(wx);
+                const isStrong=wx%5===0;
+                ctx.strokeStyle=isStrong?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.03)';
+                ctx.lineWidth=isStrong?1:0.5;
+                ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,h); ctx.stroke();
+                if(isStrong&&editorZoom>=22) { ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font=`${Math.max(9,editorZoom*0.22)}px monospace`; ctx.fillText(wx,sx+3,16); }
+            }
+        }
+
+        // 上方地基
+        ctx.fillStyle='rgba(20,20,50,0.6)'; ctx.fillRect(0,0,w,topGroundY);
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.moveTo(0,topGroundY); ctx.lineTo(w,topGroundY); ctx.stroke();
+        // 下方地基
+        ctx.fillStyle='rgba(30,30,60,0.5)'; ctx.fillRect(0,groundY,w,h-groundY);
+        ctx.beginPath(); ctx.moveTo(0,groundY); ctx.lineTo(w,groundY); ctx.stroke();
+
+        if(currentLevelData) {
+            const obs=currentLevelData.obstacles;
+            const visibleLeft=editorScrollX-2, visibleRight=screenToWorld(w)+2;
+            const start=binarySearchLeft(obs, visibleLeft);
+            const end=binarySearchRight(obs, visibleRight);
+            for(let i=start; i<end; i++) {
+                const o=obs[i];
+                const sx=worldToScreen(o.position);
+                const baseY=groundY+(o.yOffset||0);
+                const half=getObstacleHalfSize(o.type);
+                const centerY=baseY-half.h/2;
+                drawObstacle(ctx,o.type,sx,centerY,o.angle||0);
+            }
+        }
+
+        // 框选复制 - 选区框绘制（仅拖拽开始后显示）
+        if(isCopyMode && isCopySelecting && copyDragStarted && copySelectStart && copySelectEnd) {
+            const x1=Math.min(copySelectStart.x,copySelectEnd.x), x2=Math.max(copySelectStart.x,copySelectEnd.x);
+            ctx.fillStyle='rgba(0,212,255,0.15)'; ctx.strokeStyle='rgba(0,212,255,0.8)';
+            ctx.lineWidth=2; ctx.setLineDash([6,4]);
+            ctx.fillRect(x1,0,x2-x1,h); ctx.strokeRect(x1,0,x2-x1,h);
+            ctx.setLineDash([]);
+        }
+
+        // 框选复制 - 虚影副本绘制
+        if(clipboardObs.length>0 && !isPreviewing) {
+            for(const obs of clipboardObs) {
+                const sx=worldToScreen(obs.position+ghostOffset);
+                const baseY=groundY+(obs.yOffset||0);
+                const half=getObstacleHalfSize(obs.type);
+                const centerY=baseY-half.h/2;
+                ctx.globalAlpha=0.45;
+                drawObstacle(ctx,obs.type,sx,centerY,obs.angle||0);
+                ctx.globalAlpha=1;
+            }
+        }
+
+        if(isPreviewing) {
+            const px=worldToScreen(previewPos);
+            const playerCenterY=previewPlayerOnTop? topGroundY+PLAYER_HALF : groundY-PLAYER_HALF;
+            ctx.save(); ctx.translate(px,playerCenterY);
+            ctx.fillStyle='#44ff44'; ctx.strokeStyle='#33cc33'; ctx.lineWidth=2;
+            ctx.fillRect(-PLAYER_HALF,-PLAYER_HALF,PLAYER_SIZE,PLAYER_SIZE);
+            ctx.strokeRect(-PLAYER_HALF,-PLAYER_HALF,PLAYER_SIZE,PLAYER_SIZE);
+            ctx.fillStyle='#ffee00'; ctx.beginPath();
+            ctx.moveTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.lineTo(-8,0); ctx.closePath();
+            ctx.fill(); ctx.strokeStyle='#dd9900'; ctx.stroke();
+            ctx.restore();
+            ctx.strokeStyle='rgba(255,60,60,0.6)'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+            ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,h); ctx.stroke(); ctx.setLineDash([]);
+        }
+
+        if(editorSelectedObs && currentLevelData && !isPreviewing) {
+            const sel=currentLevelData.obstacles.find(o=>o.id===editorSelectedObs);
+            if(sel) {
+                const sx=worldToScreen(sel.position);
+                const baseY=groundY+(sel.yOffset||0);
+                const half=getObstacleHalfSize(sel.type);
+                const centerY=baseY-half.h/2;
+                ctx.save(); ctx.translate(sx,centerY); ctx.rotate(sel.angle||0);
+                ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.setLineDash([4,3]);
+                ctx.beginPath(); ctx.arc(0,0,Math.max(half.w,half.h)+10,0,Math.PI*2); ctx.stroke();
+                ctx.setLineDash([]); ctx.restore();
+
+                const ballR=20, ballX=sx+50, ballY=centerY;
+                ctx.save(); ctx.shadowColor='rgba(255,255,255,0.4)'; ctx.shadowBlur=8;
+                ctx.beginPath(); ctx.arc(ballX,ballY,ballR,0,2*Math.PI);
+                ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fill();
+                ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+                ctx.shadowColor='transparent'; ctx.shadowBlur=0;
+                const lineLen=ballR-4;
+                const dx=Math.cos(sel.angle||0)*lineLen, dy=Math.sin(sel.angle||0)*lineLen;
+                ctx.beginPath(); ctx.moveTo(ballX,ballY); ctx.lineTo(ballX+dx,ballY+dy);
+                ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.stroke();
+                ctx.restore();
+            }
+        }
+    }
+
+    function drawObstacle(ctx, type, cx, cy, angle) {
+        ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle);
+        switch(type) {
+            case 'spike':
+                const spikeH=39, spikeW=21;
+                ctx.fillStyle='#ff3355'; ctx.strokeStyle='#ff8899'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.moveTo(0,-spikeH/2); ctx.lineTo(-spikeW,spikeH/2); ctx.lineTo(spikeW,spikeH/2); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle='#ff6677';
+                ctx.beginPath(); ctx.moveTo(0,-spikeH/2+10); ctx.lineTo(-spikeW*0.5,spikeH/2-5); ctx.lineTo(spikeW*0.5,spikeH/2-5); ctx.closePath(); ctx.fill();
+                break;
+            case 'small-spike':
+                const smallSpikeH=25, smallSpikeW=14;
+                ctx.fillStyle='#ff3355'; ctx.strokeStyle='#ff8899'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.moveTo(0,-smallSpikeH/2); ctx.lineTo(-smallSpikeW,smallSpikeH/2); ctx.lineTo(smallSpikeW,smallSpikeH/2); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle='#ff6677';
+                ctx.beginPath(); ctx.moveTo(0,-smallSpikeH/2+6); ctx.lineTo(-smallSpikeW*0.5,smallSpikeH/2-3); ctx.lineTo(smallSpikeW*0.5,smallSpikeH/2-3); ctx.closePath(); ctx.fill();
+                break;
+            case 'fake-spike':
+                const fakeSpikeH=39, fakeSpikeW=21;
+                ctx.fillStyle='#ff8888'; ctx.strokeStyle='#ffaaaa'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.moveTo(0,-fakeSpikeH/2); ctx.lineTo(-fakeSpikeW,fakeSpikeH/2); ctx.lineTo(fakeSpikeW,fakeSpikeH/2); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle='#ffaaaa';
+                ctx.beginPath(); ctx.moveTo(0,-fakeSpikeH/2+10); ctx.lineTo(-fakeSpikeW*0.5,fakeSpikeH/2-5); ctx.lineTo(fakeSpikeW*0.5,fakeSpikeH/2-5); ctx.closePath(); ctx.fill();
+                break;
+            case 'block':
+                const blockSize=48;
+                ctx.fillStyle='#4488ff'; ctx.strokeStyle='#88bbff'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.roundRect(-blockSize/2,-blockSize/2,blockSize,blockSize,5); ctx.fill(); ctx.stroke();
+                ctx.fillStyle='rgba(255,255,255,0.2)';
+                ctx.fillRect(-blockSize/2+9,-blockSize/2+9,blockSize-18,blockSize-18);
+                break;
+            case 'fake-block':
+                const fakeBlockSize=45;
+                ctx.fillStyle='#88ccff'; ctx.strokeStyle='#aaddff'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.roundRect(-fakeBlockSize/2,-fakeBlockSize/2,fakeBlockSize,fakeBlockSize,5); ctx.fill(); ctx.stroke();
+                ctx.fillStyle='rgba(255,255,255,0.25)';
+                ctx.fillRect(-fakeBlockSize/2+8,-fakeBlockSize/2+8,fakeBlockSize-16,fakeBlockSize-16);
+                break;
+            case 'tall-pillar':
+                const tallW=28, tallH=96;
+                ctx.fillStyle='#b840ee'; ctx.strokeStyle='#d880ff'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.roundRect(-tallW/2,-tallH/2,tallW,tallH,5); ctx.fill(); ctx.stroke();
+                ctx.fillStyle='#d880ff'; ctx.beginPath(); ctx.arc(0,-tallH/2+14,10,0,Math.PI*2); ctx.fill();
+                break;
+            case 'short-pillar':
+                const shortW=32, shortH=40;
+                ctx.fillStyle='#66aadd'; ctx.strokeStyle='#aaddff'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.roundRect(-shortW/2,-shortH/2,shortW,shortH,4); ctx.fill(); ctx.stroke();
+                break;
+            case 'platform':
+                const platW=80, platH=20;
+                ctx.fillStyle='#ffb830'; ctx.strokeStyle='#ffd580'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.roundRect(-platW/2,-platH/2,platW,platH,3); ctx.fill(); ctx.stroke();
+                break;
+        }
+        ctx.restore();
+    }
+
+    function getEditorMousePos(e) { const r=editorCanvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+    function isOnRotateBall(obs,mx,my) {
+        if(!obs||!currentLevelData) return false;
+        const groundY=editorCanvas.height*0.72;
+        const sx=worldToScreen(obs.position);
+        const baseY=groundY+(obs.yOffset||0);
+        const half=getObstacleHalfSize(obs.type);
+        const centerY=baseY-half.h/2;
+        const ballX=sx+50, ballY=centerY;
+        return Math.hypot(mx-ballX,my-ballY)<=22;
+    }
+
+    function clampBaseY(baseY, obHeight, topGroundY, groundY) {
+        if(baseY - obHeight < topGroundY) baseY = topGroundY + obHeight;
+        if(baseY > groundY) baseY = groundY;
+        return baseY;
+    }
+
+    editorCanvas.addEventListener('mousedown', e => {
+        if(isPreviewing) {
+            if(e.button===0) { e.preventDefault(); previewPlayerOnTop=!previewPlayerOnTop; renderEditor(); return; }
+            else if(e.button===2) { e.preventDefault(); stopPreview(); return; }
+            return;
+        }
+        if(!currentLevelData) return;
+
+        // 框选复制模式处理
+        if(isCopyMode && e.button===0) {
+            if(clipboardObs.length>0) { pasteGhosts(); exitGhostPaste(); renderEditor(); updateObsCount(); }
+            else { const pos=getEditorMousePos(e); copyMouseDownPos={x:pos.x,y:pos.y}; copyDragStarted=false; isCopySelecting=false; }
+            return;
+        }
+        if(isCopyMode && e.button===2) { e.preventDefault(); exitGhostPaste(); renderEditor(); return; }
+
+        const pos=getEditorMousePos(e);
+        const worldX=screenToWorld(pos.x);
+        const h=editorCanvas.height, groundY=h*0.72, topGroundY=(h-groundY)/2;
+        let yOffset=pos.y-groundY;
+
+        // 旋转球检测（优先级最高）
+        if(editorSelectedObs && e.button===0 && !e.shiftKey && !e.altKey) {
+            const sel=currentLevelData.obstacles.find(o=>o.id===editorSelectedObs);
+            if(sel && isOnRotateBall(sel, pos.x, pos.y)) {
+                const sx=worldToScreen(sel.position);
+                const baseY=groundY+(sel.yOffset||0);
+                const half=getObstacleHalfSize(sel.type);
+                const centerY=baseY-half.h/2;
+                const ballX=sx+50, ballY=centerY;
+                const mouseAngle=Math.atan2(pos.y-ballY, pos.x-ballX);
+                editorRotating={ id:sel.id, initialAngle:sel.angle||0, initialMouseAngle:mouseAngle };
+                e.preventDefault();
+                return;
+            }
+        }
+
+        if(e.button===2) {
+            e.preventDefault();
+            const obs=getObstacleAtScreenPos(pos.x, pos.y);
+            if(obs) {
+                currentLevelData.obstacles=currentLevelData.obstacles.filter(o=>o.id!==obs.id);
+                if(editorSelectedObs===obs.id) editorSelectedObs=null;
+                renderEditor(); updateObsCount(); showToast('障碍物已删除','info');
+            } else if(editorSelectedObs) { editorSelectedObs=null; renderEditor(); }
+            return;
+        }
+
+        if(e.button===0) {
+            if(e.shiftKey||e.altKey) {
+                editorPanning=true; editorPanStartX=e.clientX; editorPanStartScroll=editorScrollX;
+                editorCanvasWrap.style.cursor='grabbing'; return;
+            }
+            const obs=getObstacleAtScreenPos(pos.x, pos.y);
+            if(obs) {
+                editorSelectedObs=obs.id;
+                editorDragging={ id:obs.id, offsetX:obs.position-worldX, offsetY:(obs.yOffset||0)-yOffset };
+                renderEditor(); return;
+            }
+            // 放置新障碍物
+            const type=selectedObstacleType, obHeight=getObstacleHeight(type);
+            let baseY=groundY+yOffset;
+            baseY=clampBaseY(baseY, obHeight, topGroundY, groundY);
+            yOffset=baseY-groundY;
+            const newObs={ id:'obs_'+Date.now()+'_'+Math.random().toString(36).substr(2,5), type, position:worldX, yOffset, angle:0 };
+            insertObstacleSorted(currentLevelData.obstacles, newObs);
+            editorSelectedObs=newObs.id; editorDragging={ id:newObs.id, offsetX:0, offsetY:0 };
+            renderEditor(); updateObsCount();
+        }
+    });
+
+    editorCanvas.addEventListener('mousemove', e => {
+        if(isPreviewing) return;
+        const pos=getEditorMousePos(e);
+        const worldX=screenToWorld(pos.x);
+        const h=editorCanvas.height, groundY=h*0.72, topGroundY=(h-groundY)/2;
+        const yOffset=pos.y-groundY;
+        editorMouseWorldX=worldX; editorMouseWorldY=yOffset;
+        cursorPosEl.textContent=`位置: (${worldX.toFixed(2)}, ${yOffset.toFixed(1)}px)`;
+
+        // 框选复制 - 等待拖拽触发 / 选区框更新 / 虚影跟随
+        if(isCopyMode) {
+            if(copyMouseDownPos && !copyDragStarted && !isCopySelecting) {
+                const dx=pos.x-copyMouseDownPos.x, dy=pos.y-copyMouseDownPos.y;
+                if(Math.sqrt(dx*dx+dy*dy)>COPY_DRAG_THRESHOLD) {
+                    copyDragStarted=true; isCopySelecting=true;
+                    copySelectStart={x:copyMouseDownPos.x}; copySelectEnd={x:pos.x};
+                }
+            }
+            if(isCopySelecting && copyDragStarted) { copySelectEnd={x:pos.x}; renderEditor(); return; }
+            if(clipboardObs.length>0) { ghostOffset=worldX-ghostBasePos; renderEditor(); return; }
+        }
+
+        if(editorRotating && currentLevelData) {
+            const obs=currentLevelData.obstacles.find(o=>o.id===editorRotating.id);
+            if(obs) {
+                const sx=worldToScreen(obs.position);
+                const baseY=groundY+(obs.yOffset||0);
+                const half=getObstacleHalfSize(obs.type);
+                const centerY=baseY-half.h/2;
+                const ballX=sx+50, ballY=centerY;
+                const currentMouseAngle=Math.atan2(pos.y-ballY, pos.x-ballX);
+                let newAngle=editorRotating.initialAngle+(currentMouseAngle-editorRotating.initialMouseAngle);
+                obs.angle=((newAngle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+                renderEditor();
+            }
+            return;
+        }
+        if(editorDragging && currentLevelData) {
+            const obs=currentLevelData.obstacles.find(o=>o.id===editorDragging.id);
+            if(obs) {
+                obs.position=Math.max(0, worldX+editorDragging.offsetX);
+                let baseY=groundY+(yOffset+editorDragging.offsetY);
+                baseY=clampBaseY(baseY, getObstacleHeight(obs.type), topGroundY, groundY);
+                obs.yOffset=baseY-groundY;
+                renderEditor();
+            }
+        }
+        if(editorPanning) {
+            const dx=e.clientX-editorPanStartX;
+            editorScrollX=Math.max(0, editorPanStartScroll-dx/editorZoom);
+            renderEditor();
+        }
+        if(!editorDragging&&!editorPanning&&!editorRotating) {
+            const obs=getObstacleAtScreenPos(pos.x, pos.y);
+            const onBall=editorSelectedObs && isOnRotateBall(currentLevelData.obstacles.find(o=>o.id===editorSelectedObs), pos.x,pos.y);
+            editorCanvasWrap.style.cursor=onBall?'pointer':(obs?'grab':'crosshair');
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if(isPreviewing) return;
+        if(editorRotating) { editorRotating=null; renderEditor(); }
+        if(editorDragging) { editorDragging=null; sortObstacles(currentLevelData.obstacles); renderEditor(); updateObsCount(); }
+        if(editorPanning) { editorPanning=false; editorCanvasWrap.style.cursor='crosshair'; }
+        // 框选复制 - 完成选区/处理单击
+        if(isCopyMode && (copyMouseDownPos || isCopySelecting)) {
+            if(!copyDragStarted && copyMouseDownPos) {
+                const clickedObs=getObstacleAtScreenPos(copyMouseDownPos.x, copyMouseDownPos.y);
+                if(clickedObs) { clipboardObs=[{...clickedObs}]; ghostBasePos=clickedObs.position; ghostOffset=0; showToast('已复制 1 个障碍物','success'); }
+                else { exitGhostPaste(); }
+            } else if(copyDragStarted && isCopySelecting && copySelectStart && copySelectEnd) {
+                const selW=Math.abs(copySelectEnd.x-copySelectStart.x);
+                if(selW<COPY_MIN_WIDTH_PX) { showToast('选区太小，已取消','info'); exitCopySelect(); renderEditor(); return; }
+                const x1=screenToWorld(Math.min(copySelectStart.x,copySelectEnd.x));
+                const x2=screenToWorld(Math.max(copySelectStart.x,copySelectEnd.x));
+                clipboardObs=currentLevelData.obstacles.filter(o=>o.position>=x1 && o.position<=x2).map(o=>({...o}));
+                if(clipboardObs.length>0) { const minPos=Math.min(...clipboardObs.map(o=>o.position)); ghostBasePos=minPos; ghostOffset=0; showToast('已复制 '+clipboardObs.length+' 个障碍物','success'); }
+                else { showToast('选区内无障碍物','info'); }
+            }
+            exitCopySelect();
+            renderEditor();
+        }
+    });
+
+    editorCanvasWrap.addEventListener('wheel', e => {
+        if(!currentLevelData) return;
+        e.preventDefault();
+        if(e.shiftKey) { editorScrollX+=e.deltaY/editorZoom; editorScrollX=Math.max(0,editorScrollX); }
+        else {
+            const pos=getEditorMousePos(e);
+            const before=screenToWorld(pos.x);
+            editorZoom=Math.max(16,Math.min(80,editorZoom+(e.deltaY>0?-5:5)));
+            const after=screenToWorld(pos.x);
+            editorScrollX+=before-after;
+            editorScrollX=Math.max(0,editorScrollX);
+            updateZoomIndicator();
+        }
+        renderEditor();
+    }, {passive:false});
+
+    editorCanvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+    window.addEventListener('keydown', e => {
+        if(currentPage==='levels') {
+            if(e.key==='ArrowLeft') { e.preventDefault(); switchLevel(-1); return; }
+            if(e.key==='ArrowRight') { e.preventDefault(); switchLevel(1); return; }
+            if(e.key==='Enter' || e.key===' ') { e.preventDefault(); enterCurrentLevel(); return; }
+        }
+        if(currentPage!=='editor') return;
+        if(e.target.tagName==='INPUT') return;
+        if(e.key==='Delete'||e.key==='Backspace') {
+            if(editorSelectedObs && currentLevelData && !isPreviewing) {
+                currentLevelData.obstacles=currentLevelData.obstacles.filter(o=>o.id!==editorSelectedObs);
+                editorSelectedObs=null; editorDragging=null; editorRotating=null;
+                renderEditor(); updateObsCount(); showToast('障碍物已删除','info');
+            }
+        }
+        if(e.key==='Escape') { stopPreview(); editorSelectedObs=null; exitCopyMode(); renderEditor(); return; }
+        if(e.key===' ') {
+            e.preventDefault();
+            if(isPreviewing) { previewPlayerOnTop=!previewPlayerOnTop; renderEditor(); }
+            else togglePreview();
+            return;
+        }
+        if((e.ctrlKey||e.metaKey)&&e.key==='s') { e.preventDefault(); if(!isPreviewing) saveCurrentLevel(); }
+        const typeKeys={'1':'spike','2':'small-spike','3':'fake-spike','4':'block','5':'fake-block','6':'tall-pillar','7':'short-pillar','8':'platform'};
+        if(typeKeys[e.key]&&!e.ctrlKey&&!e.metaKey&&!isPreviewing) { selectedObstacleType=typeKeys[e.key]; updateObstacleTypeButtons(); }
+    });
+
+    function getObstacleAtWorld(worldX, tolerance) {
+        if(!currentLevelData) return null;
+        const tol=tolerance||0.55;
+        const obs=currentLevelData.obstacles;
+        const start=binarySearchLeft(obs, worldX-tol);
+        const end=binarySearchRight(obs, worldX+tol);
+        let closest=null, closestDist=Infinity;
+        for(let i=start; i<end; i++) {
+            const o=obs[i];
+            const dist=Math.abs(o.position-worldX);
+            if(dist<tol&&dist<closestDist) { closest=o; closestDist=dist; }
+        }
+        return closest;
+    }
+
+    function getObstacleAtScreenPos(sx, sy) {
+        if(!currentLevelData) return null;
+        const obs=currentLevelData.obstacles;
+        const worldX=screenToWorld(sx);
+        const start=binarySearchLeft(obs, worldX-3);
+        const end=binarySearchRight(obs, worldX+3);
+        let best=null, bestArea=Infinity;
+        for(let i=start; i<end; i++) {
+            const o=obs[i];
+            const b=getObstacleVisualScreenBounds(o);
+            if(sx>=b.left && sx<=b.right && sy>=b.top && sy<=b.bottom) {
+                const area=(b.right-b.left)*(b.bottom-b.top);
+                if(area<bestArea) { best=o; bestArea=area; }
+            }
+        }
+        return best;
+    }
+
+    function togglePreview() { isPreviewing?stopPreview():startPreview(); }
+    function toggleNoCollision() {
+        previewNoCollision=!previewNoCollision;
+        const btn=document.getElementById('noCollisionBtn');
+        if(previewNoCollision) {
+            btn.style.background='#ffc107'; btn.style.color='#000'; btn.style.fontWeight='bold'; btn.textContent='🛡️ 无判定(开)';
+        } else {
+            btn.style.background=''; btn.style.color=''; btn.style.fontWeight=''; btn.textContent='🛡️ 无判定';
+        }
+    }
+    function startPreview() {
+        if(!currentLevelData||isPreviewing) return;
+        isPreviewing=true;
+        previewPos=0; editorScrollX=0;
+        previewPlayerOnTop=false;
+        isGameOver=false;
+        previewLastTime=performance.now();
+        previewBtn.textContent='⏹ 停止'; previewBtn.style.background='#ff3c3c'; previewBtn.style.color='#fff';
+        editorCanvasWrap.style.cursor='default';
+        editorSelectedObs=null; editorDragging=null; editorRotating=null;
+        exitCopyMode();
+        if(bgMusic && !bgMusic.paused) bgMusic.pause();
+        if(!previewMusic) { previewMusic=new Audio(); previewMusic.loop=true; }
+        const levelMusicUrl=(currentLevelData&&currentLevelData.musicUrl)||PREVIEW_MUSIC_URL;
+        if(previewMusic.src!==levelMusicUrl) previewMusic.src=levelMusicUrl;
+        previewMusic.volume=document.getElementById('musicVolume').value/100;
+        previewMusic.currentTime=0;
+        previewMusic.play().catch(function(){});
+        previewRAF=requestAnimationFrame(previewLoop);
+    }
+    function stopPreview() {
+        isPreviewing=false; isGameOver=false; isVictory=false;
+        if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
+        if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
+        previewBtn.textContent='▶ 预览'; previewBtn.style.background=''; previewBtn.style.color='';
+        editorCanvasWrap.style.cursor='crosshair';
+        if(currentPage==='menu' && bgMusic && bgMusic.paused) bgMusic.play().catch(function(){});
+        renderEditor();
+    }
+    function previewLoop(timestamp) {
+        if(!isPreviewing||isGameOver||isVictory) return;
+        const dt=Math.min((timestamp-previewLastTime)/1000,0.1);
+        previewLastTime=timestamp;
+        const h=editorCanvas.height, groundY=h*0.72, topGroundY=(h-groundY)/2;
+        previewPos+=previewSpeed*dt;
+
+        /* 胜利检测已暂时禁用
+        // 胜利检测：检查后方30格内是否有障碍物
+        if(currentLevelData) {
+            const obs = currentLevelData.obstacles;
+            if(obs.length === 0) {
+                isVictory = true;
+                if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
+                if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
+                isPreviewing=false;
+                showVictoryScreen();
+                return;
+            }
+            const lastObs = obs[obs.length - 1];
+            if(previewPos > lastObs.position + 30) {
+                isVictory = true;
+                if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
+                if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
+                isPreviewing=false;
+                showVictoryScreen();
+                return;
+            }
+        }
+        */
+
+        if(currentLevelData && !previewNoCollision) {
+            const pScreenX=worldToScreen(previewPos);
+            const pScreenLeft=pScreenX-PLAYER_HALF, pScreenRight=pScreenX+PLAYER_HALF;
+            const baseCenterY=previewPlayerOnTop? topGroundY+PLAYER_HALF : groundY-PLAYER_HALF;
+            const baseTop=baseCenterY-PLAYER_HALF, baseBottom=baseCenterY+PLAYER_HALF;
+            const obs=currentLevelData.obstacles;
+            const checkLeft=previewPos-5, checkRight=previewPos+5;
+            const start=binarySearchLeft(obs, checkLeft);
+            const end=binarySearchRight(obs, checkRight);
+            for(let i=start; i<end; i++) {
+                const o=obs[i];
+                if(o.type==='fake-spike' || o.type==='fake-block') continue;
+                const sx=worldToScreen(o.position);
+                if(!(pScreenRight>sx-24&&pScreenLeft<sx+24)) continue;
+                const b=getObstacleVisualScreenBounds(o);
+                if(!(pScreenRight>b.left&&pScreenLeft<b.right)) continue;
+                if(o.type==='spike' || o.type==='small-spike') {
+                    const t0={x:b.tipX,y:b.tipY}, t1={x:b.baseLeftX,y:b.baseLeftY}, t2={x:b.baseRightX,y:b.baseRightY};
+                    if(rectTriangleOverlap(pScreenLeft,baseTop,pScreenRight,baseBottom,t0,t1,t2)) { isGameOver=true; stopPreview(); showToast('💀 撞到尖刺！','error'); return; }
+                } else {
+                    if(baseBottom>b.top&&baseTop<b.bottom) { isGameOver=true; stopPreview(); showToast('💀 撞到障碍物！','error'); return; }
+                }
+            }
+        }
+        const cw=editorCanvas.width;
+        editorScrollX=Math.max(0, previewPos-(cw*0.3)/editorZoom);
+        renderEditor();
+        previewRAF=requestAnimationFrame(previewLoop);
+    }
+
+    function showVictoryScreen() {
+        const overlay = document.getElementById('victoryOverlay');
+        if(!overlay) return;
+        const levelNameEl = document.getElementById('victoryLevelName');
+        if(currentLevelData && levelNameEl) {
+            levelNameEl.textContent = '关卡: ' + currentLevelData.name;
+            const difficultyEl = document.getElementById('victoryDifficulty');
+            if(difficultyEl) {
+                const difficulties = { '溃散': '★★☆☆☆', '初始': '★★★☆☆', '密钥': '★★★★★' };
+                difficultyEl.textContent = difficulties[currentLevelData.name] || '★★★☆☆';
+            }
+        }
+        overlay.classList.add('show');
+        createVictoryParticles();
+    }
+
+    function createVictoryParticles() {
+        const container = document.getElementById('victoryParticles');
+        if(!container) return;
+        container.innerHTML = '';
+        for(let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.style.cssText = `
+                position: absolute; width: ${Math.random() * 10 + 5}px; height: ${Math.random() * 10 + 5}px;
+                background: ${['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7'][Math.floor(Math.random() * 6)]};
+                left: ${Math.random() * 100}%; top: ${Math.random() * 100}%;
+                border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+                animation: particleFloat ${2 + Math.random() * 3}s ease-in-out infinite alternate;
+                opacity: ${0.4 + Math.random() * 0.6};
+                animation-delay: ${Math.random() * 2}s;
+            `;
+            container.appendChild(particle);
+        }
+        // 添加粒子动画样式
+        if(!document.getElementById('victoryParticleStyle')) {
+            const style = document.createElement('style');
+            style.id = 'victoryParticleStyle';
+            style.textContent = `
+                @keyframes particleFloat {
+                    from { transform: translateY(0) rotate(0deg); opacity: 0.3; }
+                    to { transform: translateY(-${50 + Math.random() * 100}px) rotate(${360}deg); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    function hideVictoryScreen() {
+        const overlay = document.getElementById('victoryOverlay');
+        if(overlay) overlay.classList.remove('show');
+    }
+
+    function replayLevel() {
+        hideVictoryScreen();
+        isVictory = false;
+        if(currentLevelId && currentLevelData) {
+            openLevelInEditor(currentLevelId);
+        }
+    }
+
+    function backToLevels() {
+        hideVictoryScreen();
+        isVictory = false;
+        navigateTo('levels');
+    }
+
+    function openSettings() { settingsOverlay.classList.add('open'); particleDensitySlider.value=particleDensity; defaultZoomSlider.value=defaultZoomVal; }
+    function closeSettings() { settingsOverlay.classList.remove('open'); particleDensity=+particleDensitySlider.value; defaultZoomVal=+defaultZoomSlider.value; initBgParticles(); if(currentPage==='editor') renderEditor(); }
+    settingsOverlay.addEventListener('click', e=>{ if(e.target===settingsOverlay) closeSettings(); });
+    particleDensitySlider.addEventListener('input', ()=>{ particleDensity=+particleDensitySlider.value; initBgParticles(); });
+    window.addEventListener('resize', ()=>{ resizeBgCanvas(); if(currentPage==='editor') resizeEditorCanvas(); });
+
+    function init() {
+        initPresetLevels();
+        resizeBgCanvas(); initBgParticles();
+        requestAnimationFrame(animateBg);
+        navigateTo('menu');
+        updateObstacleTypeButtons();
+        updateZoomIndicator();
+        initDefaultMusic();
+    }
+
+    function exportLevelData() {
+        const data = localStorage.getItem('geometry_dash_levels');
+        if(data) {
+            try {
+                const blob = new Blob([data], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'geometry_dash_levels_backup.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+            } catch(e) {}
+            const textarea = document.createElement('textarea');
+            textarea.value = data;
+            textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:300px;z-index:9999;background:#111;color:#0f0;border:2px solid #0f0;font-family:monospace;font-size:12px;padding:10px;resize:none;';
+            textarea.id = 'exportTextarea';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '关闭';
+            closeBtn.style.cssText = 'position:fixed;top:calc(50% + 160px);left:50%;transform:translateX(-50%);z-index:10000;padding:8px 20px;background:#0f0;color:#000;border:none;cursor:pointer;font-weight:bold;border-radius:4px;';
+            closeBtn.onclick = function() {
+                document.body.removeChild(textarea);
+                document.body.removeChild(closeBtn);
+            };
+            document.body.appendChild(closeBtn);
+            showToast('数据已显示，请全选复制(Ctrl+A, Ctrl+C)', 'success');
+        } else {
+            showToast('没有找到关卡数据，请确认在本地文件中打开', 'error');
+        }
+    }
+
+    function initPresetLevels() {
+        const levels = getAllLevels();
+        const presetData = [
+            { name: '溃散', music: 'https://static.tcamp.qq.com/gallery/prod/2026/5/7/49defbf29fc13792/1acab70a-73a1-492a-81f5-0074c8fb290d.mp3', obstacles: [] },
+            { name: '初始', music: '', obstacles: [] },
+            { name: '密钥', music: 'https://static.tcamp.qq.com/gallery/prod/2026/5/9/49defbf29fc13792/532c2639-a34f-4723-931c-7c38bca08530.mp3', obstacles: [] }
+        ];
+        presetData.forEach(p => {
+            if(!levels.find(l => l.name === p.name)) {
+                const newLevel = {
+                    id: generateId(),
+                    name: p.name,
+                    obstacles: p.obstacles,
+                    createdAt: new Date().toISOString(),
+                    gridSize: 45,
+                    musicUrl: p.music
+                };
+                saveLevel(newLevel);
+            }
+        });
+    }
+    window.navigateTo=navigateTo; window.createNewLevel=createNewLevel;
+    window.openSettings=openSettings; window.closeSettings=closeSettings;
+    window.selectObstacleType=selectObstacleType;
+    window.editorZoomIn=editorZoomIn; window.editorZoomOut=editorZoomOut;
+    window.togglePreview=togglePreview; window.saveCurrentLevel=saveCurrentLevel;
+    window.toggleNoCollision=toggleNoCollision;
+    window.switchLevel=switchLevel; window.enterCurrentLevel=enterCurrentLevel;
+    window.replayLevel=replayLevel; window.backToLevels=backToLevels;
+    init();
+})();
+</script>
+</body>
+</html>
