@@ -283,7 +283,7 @@
             <span class="divider"></span>
             <button class="btn btn-xs btn-success" onclick="togglePreview()" id="previewBtn">▶ 预览</button>
             <button class="btn btn-xs btn-ghost" onclick="saveCurrentLevel()">💾 保存</button>
-            <button class="btn btn-xs btn-ghost" onclick="duplicateObstacle()" id="duplicateBtn" title="复制选中的障碍物 (Ctrl+D)">📋 复制</button>
+            <button class="btn btn-xs btn-ghost" onclick="toggleCopyMode()" id="duplicateBtn" title="框选复制：拖拽框选障碍物 → 松开复制 → 点击粘贴 (Esc/右键取消)">� 框选复制</button>
             <button class="btn btn-xs btn-ghost" onclick="toggleNoCollision()" id="noCollisionBtn" title="无判定模式：角色不会死亡">🛡️ 无判定</button>
             <span style="flex:1;"></span>
             <span id="obsCount" style="font-size:11px;color:var(--text-secondary);">障碍物: 0</span>
@@ -304,7 +304,7 @@
             </div>
         </div>
         <div class="editor-bottom-bar">
-            <span class="hint">点击放置 · 拖拽移动 · 拖动球旋转 · 右键/Del删除 · Ctrl+D复制 | 预览：空格/左键切换位置，右键退出</span>
+            <span class="hint">点击放置 · 拖拽移动 · 旋转球旋转 · 右键/Del删除 · Ctrl+D速复制 | 📦框选：拖拽→松手复制→点击粘贴</span>
             <span style="flex:1;"></span>
             <span id="cursorPos" style="font-family:monospace;">位置: (0.00, 0)</span>
         </div>
@@ -395,29 +395,35 @@
     function toggleCopyMode() {
         if(isPreviewing) return;
         isCopyMode = !isCopyMode;
-        const btn=document.getElementById('copyModeBtn');
+        const btn=document.getElementById('duplicateBtn');
         if(isCopyMode) {
             btn.style.background='var(--neon-blue)';
             btn.style.color='#fff';
-            btn.textContent='📋 复制中';
+            btn.textContent='� 框选中';
             editorCanvasWrap.classList.add('copy-mode-cursor');
             exitGhostPaste();
+            exitCopySelect();
+            editorSelectedObs = null;
+            editorDragging = null;
+            renderEditor();
         } else {
             btn.style.background='';
             btn.style.color='';
-            btn.textContent='📋 复制';
+            btn.textContent='� 框选复制';
             editorCanvasWrap.classList.remove('copy-mode-cursor');
             exitCopySelect();
             exitGhostPaste();
+            renderEditor();
         }
     }
     function exitCopyMode() {
         if(!isCopyMode) return;
         isCopyMode=false;
-        const btn=document.getElementById('copyModeBtn');
-        btn.style.background=''; btn.style.color=''; btn.textContent='📋 复制';
+        const btn=document.getElementById('duplicateBtn');
+        btn.style.background=''; btn.style.color=''; btn.textContent='� 框选复制';
         editorCanvasWrap.classList.remove('copy-mode-cursor');
         exitCopySelect(); exitGhostPaste();
+        renderEditor();
     }
     function exitCopySelect() {
         isCopySelecting=false; copyDragStarted=false;
