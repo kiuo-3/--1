@@ -283,6 +283,7 @@
             <span class="divider"></span>
             <button class="btn btn-xs btn-success" onclick="togglePreview()" id="previewBtn">▶ 预览</button>
             <button class="btn btn-xs btn-ghost" onclick="saveCurrentLevel()">💾 保存</button>
+            <button class="btn btn-xs btn-ghost" onclick="duplicateObstacle()" id="duplicateBtn" title="复制选中的障碍物 (Ctrl+D)">📋 复制</button>
             <button class="btn btn-xs btn-ghost" onclick="toggleNoCollision()" id="noCollisionBtn" title="无判定模式：角色不会死亡">🛡️ 无判定</button>
             <span style="flex:1;"></span>
             <span id="obsCount" style="font-size:11px;color:var(--text-secondary);">障碍物: 0</span>
@@ -303,7 +304,7 @@
             </div>
         </div>
         <div class="editor-bottom-bar">
-            <span class="hint">点击放置 · 拖拽移动 · 拖动球旋转 · 右键/Del删除 | 预览：空格/左键切换位置，右键退出</span>
+            <span class="hint">点击放置 · 拖拽移动 · 拖动球旋转 · 右键/Del删除 · Ctrl+D复制 | 预览：空格/左键切换位置，右键退出</span>
             <span style="flex:1;"></span>
             <span id="cursorPos" style="font-family:monospace;">位置: (0.00, 0)</span>
         </div>
@@ -357,6 +358,39 @@
     let clipboardObs = [];
     let ghostOffset = 0;
     let ghostBasePos = 0;
+    let copiedObstacle = null;
+
+    function duplicateObstacle() {
+        if (isPreviewing || !currentLevelData) return;
+        if (clipboardObs.length > 0) { exitGhostPaste(); }
+
+        let sourceObs = null;
+        if (editorSelectedObs) {
+            sourceObs = currentLevelData.obstacles.find(o => o.id === editorSelectedObs);
+        }
+        if (!sourceObs) {
+            const pos = editorMouseWorldX;
+            sourceObs = getObstacleAtWorld(pos, 1.5);
+        }
+        if (!sourceObs) {
+            showToast('请先选中一个障碍物', 'info');
+            return;
+        }
+
+        const newObs = {
+            id: 'obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            type: sourceObs.type,
+            position: sourceObs.position + 4,
+            yOffset: sourceObs.yOffset || 0,
+            angle: sourceObs.angle || 0
+        };
+        insertObstacleSorted(currentLevelData.obstacles, newObs);
+        editorSelectedObs = newObs.id;
+        editorDragging = { id: newObs.id, offsetX: 0, offsetY: 0 };
+        renderEditor();
+        updateObsCount();
+        showToast('已复制障碍物，拖拽调整位置', 'success');
+    }
 
     function toggleCopyMode() {
         if(isPreviewing) return;
@@ -1139,6 +1173,7 @@
             else togglePreview();
             return;
         }
+        if((e.ctrlKey||e.metaKey)&&e.key==='d') { e.preventDefault(); if(!isPreviewing) duplicateObstacle(); return; }
         if((e.ctrlKey||e.metaKey)&&e.key==='s') { e.preventDefault(); if(!isPreviewing) saveCurrentLevel(); }
         const typeKeys={'1':'spike','2':'small-spike','3':'fake-spike','4':'block','5':'fake-block','6':'tall-pillar','7':'short-pillar','8':'platform'};
         if(typeKeys[e.key]&&!e.ctrlKey&&!e.metaKey&&!isPreviewing) { selectedObstacleType=typeKeys[e.key]; updateObstacleTypeButtons(); }
@@ -1420,6 +1455,7 @@
     window.editorZoomIn=editorZoomIn; window.editorZoomOut=editorZoomOut;
     window.togglePreview=togglePreview; window.saveCurrentLevel=saveCurrentLevel;
     window.toggleNoCollision=toggleNoCollision;
+    window.duplicateObstacle=duplicateObstacle;
     window.switchLevel=switchLevel; window.enterCurrentLevel=enterCurrentLevel;
     window.replayLevel=replayLevel; window.backToLevels=backToLevels;
     init();
