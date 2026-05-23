@@ -281,8 +281,6 @@
             <span class="zoom-indicator" id="zoomIndicator">45px/格</span>
             <button class="btn btn-xs btn-ghost" onclick="editorZoomIn()">+</button>
             <span class="divider"></span>
-            <button class="btn btn-xs btn-ghost" onclick="toggleSidebar()" id="sidebarToggleBtn" title="显示/隐藏障碍物栏">📐 侧栏</button>
-            <span class="divider"></span>
             <button class="btn btn-xs btn-success" onclick="togglePreview()" id="previewBtn">▶ 预览</button>
             <button class="btn btn-xs btn-ghost" onclick="saveCurrentLevel()">💾 保存</button>
             <button class="btn btn-xs btn-ghost" onclick="toggleCopyMode()" id="duplicateBtn" title="框选复制：拖拽框选障碍物 → 松开复制 → 点击粘贴 (Esc/右键取消)">� 框选复制</button>
@@ -1476,7 +1474,6 @@
     window.navigateTo=navigateTo; window.createNewLevel=createNewLevel;
     window.openSettings=openSettings; window.closeSettings=closeSettings;
     window.selectObstacleType=selectObstacleType;
-    window.toggleSidebar=toggleSidebar;
     window.editorZoomIn=editorZoomIn; window.editorZoomOut=editorZoomOut;
     window.togglePreview=togglePreview; window.saveCurrentLevel=saveCurrentLevel;
     window.toggleNoCollision=toggleNoCollision;
