@@ -304,7 +304,7 @@
             </div>
         </div>
         <div class="editor-bottom-bar">
-            <span class="hint">点击放置 · 拖拽移动 · 旋转球旋转 · 右键/Del删除 · Ctrl+D速复制 | 📦框选：拖拽→松手复制→点击粘贴</span>
+            <span class="hint">点击放置 · 拖拽移动 · 旋转球旋转 · 右键/Del删除 · Ctrl+D速复制 | 📦框选：拖拽→松手→↑↓旋转→点击粘贴</span>
             <span style="flex:1;"></span>
             <span id="cursorPos" style="font-family:monospace;">位置: (0.00, 0)</span>
         </div>
@@ -358,6 +358,7 @@
     let clipboardObs = [];
     let ghostOffset = 0;
     let ghostBasePos = 0;
+    let ghostAngle = 0;
     let copiedObstacle = null;
 
     function duplicateObstacle() {
@@ -446,15 +447,20 @@
         copyMouseDownPos=null; copySelectStart=null; copySelectEnd=null;
     }
     function exitGhostPaste() {
-        clipboardObs=[]; ghostOffset=0; ghostBasePos=0;
+        clipboardObs=[]; ghostOffset=0; ghostBasePos=0; ghostAngle=0;
     }
     function pasteGhosts() {
         if(!currentLevelData || clipboardObs.length===0) return;
+        let firstId = null;
         for(const obs of clipboardObs) {
-            const newObs={ id:'obs_'+Date.now()+'_'+Math.random().toString(36).substr(2,5), type:obs.type, position:obs.position+ghostOffset, yOffset:obs.yOffset, angle:obs.angle||0 };
+            const newId = 'obs_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
+            if (!firstId) firstId = newId;
+            const newObs={ id: newId, type:obs.type, position:obs.position+ghostOffset, yOffset:obs.yOffset, angle:(obs.angle||0)+ghostAngle };
             currentLevelData.obstacles.push(newObs);
         }
         sortObstacles(currentLevelData.obstacles);
+        ghostAngle = 0;
+        if (firstId) { editorSelectedObs = firstId; }
         showToast('已粘贴 '+clipboardObs.length+' 个障碍物','success');
     }
 
@@ -874,7 +880,7 @@
                 const half=getObstacleHalfSize(obs.type);
                 const centerY=baseY-half.h/2;
                 ctx.globalAlpha=0.45;
-                drawObstacle(ctx,obs.type,sx,centerY,obs.angle||0);
+                drawObstacle(ctx,obs.type,sx,centerY,(obs.angle||0)+ghostAngle);
                 ctx.globalAlpha=1;
             }
         }
@@ -1181,6 +1187,13 @@
         }
         if(currentPage!=='editor') return;
         if(e.target.tagName==='INPUT') return;
+        if(clipboardObs.length>0 && (e.key==='ArrowUp'||e.key==='ArrowDown')) {
+            e.preventDefault();
+            ghostAngle += (e.key==='ArrowUp' ? Math.PI/18 : -Math.PI/18);
+            ghostAngle = ((ghostAngle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+            renderEditor();
+            return;
+        }
         if(e.key==='Delete'||e.key==='Backspace') {
             if(editorSelectedObs && currentLevelData && !isPreviewing) {
                 currentLevelData.obstacles=currentLevelData.obstacles.filter(o=>o.id!==editorSelectedObs);
