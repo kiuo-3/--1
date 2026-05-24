@@ -176,6 +176,8 @@
         .stat-label { font-size: 13px; color: rgba(255,255,255,0.6); letter-spacing: 1px; }
         .stat-value { font-size: 18px; color: #fff; font-weight: 700; }
         .victory-text { color: #00ff88 !important; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .victory-rainbow-bar { height: 4px; width: 200px; margin: 0 auto 20px; border-radius: 2px; background: linear-gradient(90deg, #ff6b6b, #ffd700, #00ff88, #45b7d1, #a55eea, #ff6b6b); background-size: 300% 100%; animation: rainbowSlide 3s linear infinite; }
+        @keyframes rainbowSlide { from { background-position: 0% 0%; } to { background-position: 300% 0%; } }
         .victory-buttons { display: flex; gap: 20px; justify-content: center; }
         .victory-btn { padding: 16px 36px; font-size: 17px; animation: btnFloat 2s ease-in-out infinite; }
         .victory-btn:nth-child(2) { animation-delay: 0.3s; }
@@ -212,16 +214,21 @@
         <div class="victory-particles" id="victoryParticles"></div>
         <div class="victory-icon">🏆</div>
         <h1 class="victory-title">关卡完成！</h1>
+        <div class="victory-rainbow-bar"></div>
         <p class="victory-subtitle">恭喜你成功通关！</p>
         <p class="victory-level-name" id="victoryLevelName"></p>
         <div class="victory-stats">
             <div class="stat-item">
-                <span class="stat-label">难度等级</span>
-                <span class="stat-value" id="victoryDifficulty">★★★☆☆</span>
+                <span class="stat-label">通关用时</span>
+                <span class="stat-value" id="victoryTime">--</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">障碍物数</span>
+                <span class="stat-value" id="victoryObsCount">0</span>
             </div>
             <div class="stat-item">
                 <span class="stat-label">完成状态</span>
-                <span class="stat-value victory-text">完美通关</span>
+                <span class="stat-value victory-text">🎉 完美通关</span>
             </div>
         </div>
         <div class="victory-buttons">
@@ -323,6 +330,7 @@
     let previewSpeed = 10;
     let previewRAF = null;
     let previewLastTime = 0;
+    let previewStartTime = 0;
     let previewPlayerOnTop = false;
     const PLAYER_SIZE = 45;
     const PLAYER_HALF = PLAYER_SIZE / 2;
@@ -1262,8 +1270,9 @@
         isPreviewing=true;
         previewPos=0; editorScrollX=0;
         previewPlayerOnTop=false;
-        isGameOver=false;
+        isGameOver=false; isVictory=false;
         previewLastTime=performance.now();
+        previewStartTime=performance.now();
         previewBtn.textContent='⏹ 停止'; previewBtn.style.background='#ff3c3c'; previewBtn.style.color='#fff';
         editorCanvasWrap.style.cursor='default';
         editorSelectedObs=null; editorDragging=null; editorRotating=null;
@@ -1293,29 +1302,24 @@
         const h=editorCanvas.height, groundY=h*0.72, topGroundY=(h-groundY)/2;
         previewPos+=previewSpeed*dt;
 
-        /* 胜利检测已暂时禁用
-        // 胜利检测：检查后方30格内是否有障碍物
         if(currentLevelData) {
             const obs = currentLevelData.obstacles;
-            if(obs.length === 0) {
-                isVictory = true;
-                if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
-                if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
-                isPreviewing=false;
-                showVictoryScreen();
-                return;
-            }
-            const lastObs = obs[obs.length - 1];
-            if(previewPos > lastObs.position + 30) {
-                isVictory = true;
-                if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
-                if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
-                isPreviewing=false;
-                showVictoryScreen();
-                return;
+            const checkEnd = previewPos + 15;
+            const futureStart = binarySearchLeft(obs, previewPos);
+            const futureEnd = binarySearchRight(obs, checkEnd);
+            if(futureStart >= futureEnd) {
+                const lastObs = obs.length > 0 ? obs[obs.length - 1] : null;
+                const passedAll = lastObs ? previewPos > lastObs.position + 0.5 : true;
+                if(passedAll) {
+                    isVictory = true;
+                    if(previewMusic) { previewMusic.pause(); previewMusic.currentTime=0; }
+                    if(previewRAF) cancelAnimationFrame(previewRAF); previewRAF=null;
+                    isPreviewing=false;
+                    showVictoryScreen();
+                    return;
+                }
             }
         }
-        */
 
         if(currentLevelData && !previewNoCollision) {
             const pScreenX=worldToScreen(previewPos);
@@ -1350,14 +1354,17 @@
     function showVictoryScreen() {
         const overlay = document.getElementById('victoryOverlay');
         if(!overlay) return;
+        const elapsed = ((performance.now() - previewStartTime) / 1000).toFixed(1);
+        const timeEl = document.getElementById('victoryTime');
+        if(timeEl) timeEl.textContent = elapsed + ' 秒';
+        const obsCountEl = document.getElementById('victoryObsCount');
+        if(obsCountEl && currentLevelData) {
+            const realObs = currentLevelData.obstacles.filter(function(o) { return o.type !== 'fake-spike' && o.type !== 'fake-block'; });
+            obsCountEl.textContent = realObs.length + ' 个';
+        }
         const levelNameEl = document.getElementById('victoryLevelName');
         if(currentLevelData && levelNameEl) {
             levelNameEl.textContent = '关卡: ' + currentLevelData.name;
-            const difficultyEl = document.getElementById('victoryDifficulty');
-            if(difficultyEl) {
-                const difficulties = { '溃散': '★★☆☆☆', '初始': '★★★☆☆', '密钥': '★★★★★' };
-                difficultyEl.textContent = difficulties[currentLevelData.name] || '★★★☆☆';
-            }
         }
         overlay.classList.add('show');
         createVictoryParticles();
