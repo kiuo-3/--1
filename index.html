@@ -296,13 +296,6 @@
         <div class="editor-main">
             <div class="editor-sidebar" id="editorSidebar">
                 <div class="sidebar-title">障碍物</div>
-                <button class="obstacle-btn selected" data-type="spike" onclick="selectObstacleType('spike',this)"><span class="obs-icon spike"></span> 尖刺</button>
-                <button class="obstacle-btn" data-type="small-spike" onclick="selectObstacleType('small-spike',this)"><span class="obs-icon small-spike"></span> 小刺</button>
-                <button class="obstacle-btn" data-type="fake-spike" onclick="selectObstacleType('fake-spike',this)"><span class="obs-icon fake-spike"></span> 假刺</button>
-                <button class="obstacle-btn" data-type="block" onclick="selectObstacleType('block',this)"><span class="obs-icon block"></span> 方块</button>
-                <button class="obstacle-btn" data-type="fake-block" onclick="selectObstacleType('fake-block',this)"><span class="obs-icon fake-block"></span> 假方块</button>
-                <button class="obstacle-btn" data-type="short-pillar" onclick="selectObstacleType('short-pillar',this)"><span class="obs-icon short-pillar"></span> 矮柱</button>
-                <button class="obstacle-btn" data-type="platform" onclick="selectObstacleType('platform',this)"><span class="obs-icon platform"></span> 平台</button>
             </div>
             <div class="editor-canvas-wrap" id="editorCanvasWrap">
                 <canvas id="editorCanvas"></canvas>
@@ -1028,58 +1021,9 @@
         }
         if(isCopyMode && e.button===2) { e.preventDefault(); exitGhostPaste(); renderEditor(); return; }
 
-        const pos=getEditorMousePos(e);
-        const worldX=screenToWorld(pos.x);
-        const h=editorCanvas.height, groundY=h*0.72, topGroundY=(h-groundY)/2;
-        let yOffset=pos.y-groundY;
-
-        // 旋转球检测（优先级最高）
-        if(editorSelectedObs && e.button===0 && !e.shiftKey && !e.altKey) {
-            const sel=currentLevelData.obstacles.find(o=>o.id===editorSelectedObs);
-            if(sel && isOnRotateBall(sel, pos.x, pos.y)) {
-                const sx=worldToScreen(sel.position);
-                const baseY=groundY+(sel.yOffset||0);
-                const half=getObstacleHalfSize(sel.type);
-                const centerY=baseY-half.h/2;
-                const ballX=sx+50, ballY=centerY;
-                const mouseAngle=Math.atan2(pos.y-ballY, pos.x-ballX);
-                editorRotating={ id:sel.id, initialAngle:sel.angle||0, initialMouseAngle:mouseAngle };
-                e.preventDefault();
-                return;
-            }
-        }
-
-        if(e.button===2) {
-            e.preventDefault();
-            const obs=getObstacleAtScreenPos(pos.x, pos.y);
-            if(obs) {
-                currentLevelData.obstacles=currentLevelData.obstacles.filter(o=>o.id!==obs.id);
-                if(editorSelectedObs===obs.id) editorSelectedObs=null;
-                renderEditor(); updateObsCount(); showToast('障碍物已删除','info');
-            } else if(editorSelectedObs) { editorSelectedObs=null; renderEditor(); }
-            return;
-        }
-
-        if(e.button===0) {
-            if(e.shiftKey||e.altKey) {
-                editorPanning=true; editorPanStartX=e.clientX; editorPanStartScroll=editorScrollX;
-                editorCanvasWrap.style.cursor='grabbing'; return;
-            }
-            const obs=getObstacleAtScreenPos(pos.x, pos.y);
-            if(obs) {
-                editorSelectedObs=obs.id;
-                editorDragging={ id:obs.id, offsetX:obs.position-worldX, offsetY:(obs.yOffset||0)-yOffset };
-                renderEditor(); return;
-            }
-            // 放置新障碍物
-            const type=selectedObstacleType, obHeight=getObstacleHeight(type);
-            let baseY=groundY+yOffset;
-            baseY=clampBaseY(baseY, obHeight, topGroundY, groundY);
-            yOffset=baseY-groundY;
-            const newObs={ id:'obs_'+Date.now()+'_'+Math.random().toString(36).substr(2,5), type, position:worldX, yOffset, angle:0 };
-            insertObstacleSorted(currentLevelData.obstacles, newObs);
-            editorSelectedObs=newObs.id; editorDragging={ id:newObs.id, offsetX:0, offsetY:0 };
-            renderEditor(); updateObsCount();
+        if(e.button===0 && (e.shiftKey||e.altKey)) {
+            editorPanning=true; editorPanStartX=e.clientX; editorPanStartScroll=editorScrollX;
+            editorCanvasWrap.style.cursor='grabbing'; return;
         }
     });
 
