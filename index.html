@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -696,6 +696,8 @@
     function createNewLevelData(name) { return { id:generateId(), name:name||'新关卡', obstacles:[], createdAt:new Date().toISOString(), gridSize:defaultZoomVal, musicUrl:'' }; }
 
     function refreshLevelsList() {
+        const levelsGrid = document.getElementById('levelsGrid');
+        if(!levelsGrid) return;
         const levels=getAllLevels();
         levelsGrid.innerHTML='';
         if(levels.length===0){ levelsGrid.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><p>还没有关卡，点击"新建关卡"开始创建吧！</p></div>'; return; }
@@ -1440,12 +1442,22 @@
 
     function initPresetLevels() {
         const levels = getAllLevels();
-        if(levels.length > 0 && levels.some(function(l){ return l.obstacles && l.obstacles.length > 0; })) return;
-        const EMBEDDED_DATA = [{"id":"lv_1778858045378_vnlkxn","name":"32","obstacles":[],"createdAt":"2026-05-15T15:14:05.379Z","gridSize":45,"musicUrl":""},{"id":"lv_177858992094_r60mva","name":"溃散","obstacles":[{"id":"obs_1778900367473_2pd8w","type":"spike","position":24.275444444444447,"yOffset":-1,"angle":0},{"id":"obs_1778900370047_6v1kb","type":"spike","position":28.84488888888889,"yOffset":0,"angle":0},{"id":"obs_1778900376468_r469t","type":"spike","position":34.22666666666667,"yOffset":0,"angle":0},{"id":"obs_1778900386711_ijwme","type":"spike","position":38.5726666666666704,"yOffset":0,"angle":0},{"id":"obs_1778900559143_jiyun","type":"spike","position":44.319666666666285197,"yOffset":0,"angle":0},{"id":"obs_1778900580713_hcfcq","type":"spike","position":50.094666666666285197,"yOffset":0,"angle":0},{"id":"obs_17789005999994_type":"spike","position":60.9832222216828,"yOffset":0,"angle":0},{"id":"obs_1778900733325_me18a","type":"spike","position":68.04448015475,"yOffset":0,"angle":0},{"id":"obs_17890038026_0qmxs","type":"block","position":69.083222216285,"yOffset":0,"angle":0},{"id":"obs_17890072554_atjxw","type":"block","position":80.98322222168285,"yOffset":0,"angle":0},{"id":"obs_178900785435_n7otb","type":"spike","position":85.43999999999994,"yOffset":0,"angle":0},{"id":"obs_17890085840_kl4kq","type":"block","position":94.43999999999974,"yOffset":0,"angle":0},{"id":"obs_1789008311110158e","type":"spike","position":100.28211111015806,"yOffset":0,"angle":0},{"id":"obs_17889008824442_lybmm","type":"spike","position":106.28211111015806,"yOffset":0,"angle":0},{"id":"obs_1778900852496_n0c0s","type":"spike","position":107.7790903272278,"yOffset":0,"angle":0},{"id":"obs_1778903822216916rZ","type":"spike","position":108.45843998999994,"yOffset":0,"angle":0},{"id":"obs_1778903222216853","type":"spike","position":83.2322222216853,"yOffset":0,"angle":0},{"id":"obs_1777910128671_5ay71","type":"spike","position":87.3971111111111,"yOffset":0,"angle":0},{"id":"obs_17789042455555554","type":"spike","position":91.64155555555554,"yOffset":0,"angle":0},{"id":"obs_17791082464992","type":"spike","position":95.17488888888887,"yOffset":0,"angle":0},{"id":"obs_177890828275153_xt0am","type":"block","position":103.17277767273,"yOffset":0,"angle":0},{"id":"obs_17791082829319_ahf57","type":"block","position":108.108029,"yOffset":0,"angle":0},{"id":"obs_177910829_ajkz","type":"block","position":115.8163333047238,"yOffset":0,"angle":0},{"id":"obs_179104339_opiK5","type":"block","position":123.439999999994,"yOffset":0,"angle":0},{"id":"obs_177910843834_vt17e","type":"spike","position":115.81559997,"yOffset":0,"angle":0},{"id":"obs_1779108453017_smt91","type":"small-spike","position":117.12711111015753,"yOffset":0,"angle":0},{"id":"obs_1779108407381_he9di","type":"spike","position":121.48266666657131,"yOffset":0,"angle":0}],"createdAt":"2026-05-15T15:14:05.379Z","gridSize":45,"musicUrl":"https://static.tcamp.qq.com/gallery/prod/2026/5/7/49defbf29fc13792/1acab70a-73a1-492a-81f5-0074c8fb290d.mp3"},{"id":"lv_1779642266478_w7ft","name":"初始","obstacles":[{"id":"obs_177904399992653f","type":"fake-spike","position":-20.439999999999994,"yOffset":0,"angle":0},{"id":"obs_1779042595971_7o3v5","type":"fake-block","position":-253.14439993_engv3","yOffset":0,"angle":0},{"id":"obs_17796422463680_c5au1","type":"fake-block","position":-253.43999993_engv3","yOffset":0,"angle":0},{"id":"obs_178574392664760_jSaiu","type":"spike","position":85.69211611784946,"yOffset":0,"angle":0},{"id":"obs_178574392664760_jSaiu","type":"spike","position":118.43","yOffset":0,"angle":0}],"createdAt":"2026-05-15T15:15:44:443.520Z","gridSize":45,"musicUrl":""},{"id":"lv_177890785435_n7otb","name":"密钥","obstacles":[],"createdAt":"2026-05-15T14:44:52.096Z","gridSize":47,"musicUrl":"https://static.tcamp.qq.com/gallery/prod/2026/5/9/49defbf29fc13792/532c2639-a34f-4723-931c-7c38bca08530.mp3"}];
-        EMBEDDED_DATA.forEach(function(data) {
-            const exists = levels.find(function(l){ return l.name === data.name; });
-            if(!exists || (exists.obstacles && exists.obstacles.length === 0 && data.obstacles && data.obstacles.length > 0)) {
-                saveLevel(JSON.parse(JSON.stringify(data)));
+        const presetData = [
+            { name: '溃散', music: 'https://static.tcamp.qq.com/gallery/prod/2026/5/7/49defbf29fc13792/1acab70a-73a1-492a-81f5-0074c8fb290d.mp3', obstacles: [] },
+            { name: '初始', music: '', obstacles: [] },
+            { name: '密钥', music: 'https://static.tcamp.qq.com/gallery/prod/2026/5/9/49defbf29fc13792/532c2639-a34f-4723-931c-7c38bca08530.mp3', obstacles: [] }
+        ];
+        presetData.forEach(p => {
+            if(!levels.find(l => l.name === p.name)) {
+                const newLevel = {
+                    id: generateId(),
+                    name: p.name,
+                    obstacles: p.obstacles,
+                    createdAt: new Date().toISOString(),
+                    gridSize: 45,
+                    musicUrl: p.music
+                };
+                saveLevel(newLevel);
             }
         });
     }
